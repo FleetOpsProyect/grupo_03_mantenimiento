@@ -123,8 +123,8 @@ checkstyle {
 // SonarCloud
 sonar {
 	properties {
-		property 'sonar.projectKey', 'TU-ORGANIZACION_grupo_03_mantenimiento'
-		property 'sonar.organization', 'TU-ORGANIZACION'
+		property 'sonar.projectKey', System.getenv('SONAR_PROJECT_KEY') ?: 'FleetOpsProyect_grupo_03_mantenimiento'
+		property 'sonar.organization', System.getenv('SONAR_ORGANIZATION') ?: 'fleetopsproyect'
 		property 'sonar.host.url', 'https://sonarcloud.io'
 		property 'sonar.coverage.jacoco.xmlReportPaths', 'build/reports/jacoco/test/jacocoTestReport.xml'
 		property 'sonar.coverage.exclusions',

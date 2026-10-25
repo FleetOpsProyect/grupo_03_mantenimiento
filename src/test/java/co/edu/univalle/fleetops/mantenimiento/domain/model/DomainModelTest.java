@@ -62,8 +62,8 @@ class DomainModelTest {
     void shouldValidateMaintenanceRuleThresholds() {
         MaintenanceRule invalidRule = MaintenanceRule.builder()
                 .scope(RuleScope.GLOBAL)
-                .thresholdKm(500) // menor al mínimo de 1000 km
-                .thresholdDays(100)
+                .mileageIntervalKm(500) // menor al mínimo de 1000 km
+                .timeIntervalDays(100)
                 .build();
 
         assertThrows(BusinessRuleException.class, invalidRule::validate);
@@ -71,8 +71,8 @@ class DomainModelTest {
         MaintenanceRule validRule = MaintenanceRule.builder()
                 .scope(RuleScope.CATEGORY)
                 .category(VehicleCategory.CAMIONETA)
-                .thresholdKm(10000)
-                .thresholdDays(180)
+                .mileageIntervalKm(10000)
+                .timeIntervalDays(180)
                 .build();
 
         assertDoesNotThrow(validRule::validate);

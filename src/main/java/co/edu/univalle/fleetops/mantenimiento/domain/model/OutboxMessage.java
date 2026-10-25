@@ -20,9 +20,10 @@ public class OutboxMessage {
     private UUID id;
     private String aggregateType;
     private UUID aggregateId;
-    private String eventType;
+    private String eventType; // o messageType ('EVENT', 'VEHICLE_CALL')
     private String exchange;
     private String routingKey;
+    private String destination;
     private String payload;
     private OutboxStatus status;
     private Integer retryCount;

@@ -9,6 +9,8 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -27,4 +29,7 @@ public class MaintenanceLog {
     private String authorId;
     private String authorName;
     private LocalDateTime registeredAt;
+
+    @Builder.Default
+    private List<MaintenanceLogAttachment> attachments = new ArrayList<>();
 }
