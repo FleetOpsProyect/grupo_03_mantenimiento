@@ -18,7 +18,7 @@ jobs:
       - name: Ejecutar comandos de Qodo
         env:
           CONFIG__GIT_PROVIDER: "github"
-          CONFIG__MODEL: "gemini/gemini-1.5-flash"
+          CONFIG__MODEL: "gemini/gemini-2.0-flash"
           CONFIG__CUSTOM_MODEL_MAX_TOKENS: 32000
           CONFIG__FALLBACK_MODELS: "[]"
           
