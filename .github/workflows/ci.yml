@@ -1,0 +1,104 @@
+name: Continuous Integration (CI)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-verify:
+    name: Build, Lint, Test & Coverage
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: fleetops_maintenance_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/fleetops_maintenance_test
+      SPRING_DATASOURCE_USERNAME: test_user
+      SPRING_DATASOURCE_PASSWORD: test_password
+      FLYWAY_ENABLED: true
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Requerido para análisis de SonarCloud y Git blame
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: 1. Code Style & Linter (Checkstyle)
+        run: ./gradlew checkstyleMain checkstyleTest --no-daemon
+
+      - name: 2. Compile and Run Tests (Unit & Integration)
+        run: ./gradlew test --no-daemon
+
+      - name: 3. Generate JaCoCo Coverage Report
+        run: ./gradlew jacocoTestReport --no-daemon
+
+      - name: 4. Verify Minimum Coverage (80% Rule)
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon
+
+      - name: 5. SonarCloud Analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::warning ::SONAR_TOKEN is not configured in repository secrets. Skipping SonarCloud analysis."
+          else
+            ./gradlew sonar -Dsonar.token="$SONAR_TOKEN" --no-daemon --info --stacktrace
+          fi
+
+      - name: 6. Build Executable Boot JAR
+        run: ./gradlew bootJar -x test --no-daemon
+
+      - name: Upload JaCoCo Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: build/reports/jacocoHtml/
+          retention-days: 14
+
+      - name: Upload JUnit Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-test-results
+          path: build/reports/tests/test/
+          retention-days: 14
