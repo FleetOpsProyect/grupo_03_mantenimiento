@@ -41,6 +41,9 @@ public class PreventiveRuleJpaEntity {
     @Column(name = "time_interval_days", nullable = false)
     private Integer timeIntervalDays;
 
+    @Column(name = "routine_description", columnDefinition = "TEXT")
+    private String routineDescription;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 

@@ -74,15 +74,11 @@ jobs:
         run: ./gradlew jacocoTestCoverageVerification --no-daemon
 
       - name: 5. SonarCloud Analysis
+        if: env.SONAR_TOKEN != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ -z "$SONAR_TOKEN" ]; then
-            echo "::warning ::SONAR_TOKEN is not configured in repository secrets. Skipping SonarCloud analysis."
-          else
-            ./gradlew sonar -Dsonar.token="$SONAR_TOKEN" --no-daemon --info --stacktrace
-          fi
+        run: ./gradlew sonar -Dsonar.token="$SONAR_TOKEN" --no-daemon --info --stacktrace
 
       - name: 6. Build Executable Boot JAR
         run: ./gradlew bootJar -x test --no-daemon

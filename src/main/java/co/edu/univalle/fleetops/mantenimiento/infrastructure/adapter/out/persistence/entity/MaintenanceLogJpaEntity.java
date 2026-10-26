@@ -5,6 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -32,8 +34,9 @@ public class MaintenanceLogJpaEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "maintenance_order_id", nullable = false)
-    private UUID maintenanceOrderId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "maintenance_order_id", nullable = false)
+    private MaintenanceOrderJpaEntity order;
 
     @Column(name = "author_type", nullable = false)
     private String authorType;
@@ -57,6 +60,10 @@ public class MaintenanceLogJpaEntity {
     private LocalDateTime registeredAt;
 
     @Builder.Default
-    @OneToMany(mappedBy = "maintenanceLogId", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "maintenanceLog", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<MaintenanceLogAttachmentJpaEntity> attachments = new ArrayList<>();
+
+    public UUID getMaintenanceOrderId() {
+        return order != null ? order.getId() : null;
+    }
 }

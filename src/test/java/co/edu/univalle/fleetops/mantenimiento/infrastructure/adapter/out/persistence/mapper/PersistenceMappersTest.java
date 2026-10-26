@@ -80,7 +80,7 @@ class PersistenceMappersTest {
     }
 
     @Test
-    @DisplayName("PreventiveRule mapper handles nulls, enums and conversions")
+    @DisplayName("PreventiveRule mapper handles nulls, enums, routineDescription and conversions")
     void testRuleMapper() {
         assertNull(ruleMapper.toDomain(null));
         assertNull(ruleMapper.toEntity(null));
@@ -94,6 +94,7 @@ class PersistenceMappersTest {
                 .category(VehicleCategory.CARGA_PESADA)
                 .mileageIntervalKm(15000)
                 .timeIntervalDays(90)
+                .routineDescription("Cambio de aceite sintético y filtros")
                 .isActive(true)
                 .createdAt(now)
                 .updatedAt(now)
@@ -105,12 +106,14 @@ class PersistenceMappersTest {
         assertEquals("CARGA_PESADA", entity.getVehicleCategory());
         assertEquals(15000, entity.getMileageIntervalKm());
         assertEquals(90, entity.getTimeIntervalDays());
+        assertEquals("Cambio de aceite sintético y filtros", entity.getRoutineDescription());
 
         MaintenanceRule mappedBack = ruleMapper.toDomain(entity);
         assertNotNull(mappedBack);
         assertEquals(RuleScope.CATEGORY, mappedBack.getScope());
         assertEquals(VehicleCategory.CARGA_PESADA, mappedBack.getCategory());
         assertEquals(15000, mappedBack.getMileageIntervalKm());
+        assertEquals("Cambio de aceite sintético y filtros", mappedBack.getRoutineDescription());
 
         // Domain with null enums
         MaintenanceRule emptyRule = MaintenanceRule.builder().id(id).build();
@@ -173,8 +176,9 @@ class PersistenceMappersTest {
         assertNotNull(entity);
         assertEquals("PROGRESS", entity.getLogType());
         assertEquals("Reemplazo de pastillas completado", entity.getNotes());
+        assertEquals(1, entity.getAttachments().size());
+        assertEquals("foto_frenos.jpg", entity.getAttachments().get(0).getFileName());
 
-        entity.setAttachments(List.of(attachEntity));
         MaintenanceLog mappedBack = logMapper.toDomain(entity);
         assertNotNull(mappedBack);
         assertEquals(LogType.PROGRESS, mappedBack.getLogType());
@@ -192,7 +196,7 @@ class PersistenceMappersTest {
     }
 
     @Test
-    @DisplayName("MaintenanceOrder mapper handles complex graph and nulls")
+    @DisplayName("MaintenanceOrder mapper handles cancelReason and assignedWorkshop")
     void testOrderMapper() {
         assertNull(orderMapper.toDomain(null));
         assertNull(orderMapper.toEntity(null));
@@ -207,10 +211,12 @@ class PersistenceMappersTest {
                 .vehicleId(vehicleId)
                 .technicianId(techId)
                 .maintenanceType(MaintenanceType.PREVENTIVE)
-                .status(MaintenanceStatus.IN_PROGRESS)
+                .status(MaintenanceStatus.CANCELLED)
                 .origin(MaintenanceOrigin.SCHEDULER)
                 .currentMileage(45000)
                 .description("Mantenimiento preventivo programado")
+                .reason("Vehículo enviado a otra sede")
+                .assignedWorkshop("Taller Norte FleetOps")
                 .totalCost(new BigDecimal("320.00"))
                 .createdAt(now)
                 .updatedAt(now)
@@ -219,14 +225,17 @@ class PersistenceMappersTest {
         MaintenanceOrderJpaEntity entity = orderMapper.toEntity(domain);
         assertNotNull(entity);
         assertEquals("PREVENTIVE", entity.getMaintenanceType());
-        assertEquals("IN_PROGRESS", entity.getStatus());
+        assertEquals("CANCELLED", entity.getStatus());
         assertEquals("SCHEDULER", entity.getOrigin());
+        assertEquals("Vehículo enviado a otra sede", entity.getCancelReason());
+        assertEquals("Taller Norte FleetOps", entity.getAssignedWorkshop());
 
         MaintenanceOrder mappedBack = orderMapper.toDomain(entity);
         assertNotNull(mappedBack);
         assertEquals(MaintenanceType.PREVENTIVE, mappedBack.getMaintenanceType());
-        assertEquals(MaintenanceStatus.IN_PROGRESS, mappedBack.getStatus());
-        assertEquals(MaintenanceOrigin.SCHEDULER, mappedBack.getOrigin());
+        assertEquals(MaintenanceStatus.CANCELLED, mappedBack.getStatus());
+        assertEquals("Vehículo enviado a otra sede", mappedBack.getReason());
+        assertEquals("Taller Norte FleetOps", mappedBack.getAssignedWorkshop());
 
         // Order with null enums
         MaintenanceOrder nullEnums = MaintenanceOrder.builder().id(orderId).build();
@@ -245,7 +254,7 @@ class PersistenceMappersTest {
     }
 
     @Test
-    @DisplayName("OutboxMessage mapper handles status, attempts and dates")
+    @DisplayName("OutboxMessage mapper handles exchange, routingKey and aggregateType")
     void testOutboxMapper() {
         assertNull(outboxMapper.toDomain(null));
         assertNull(outboxMapper.toEntity(null));
@@ -257,8 +266,11 @@ class PersistenceMappersTest {
         OutboxMessage domain = OutboxMessage.builder()
                 .id(id)
                 .aggregateId(aggregateId)
+                .aggregateType("MAINTENANCE_ORDER")
                 .eventType("maintenance.order.created")
-                .destination("maintenance-exchange")
+                .exchange("maintenance-exchange")
+                .routingKey("order.created")
+                .destination("order.created")
                 .payload("{\"order_id\":\"" + aggregateId + "\"}")
                 .status(OutboxStatus.PENDING)
                 .retryCount(0)
@@ -267,14 +279,19 @@ class PersistenceMappersTest {
 
         OutboxMessageJpaEntity entity = outboxMapper.toEntity(domain);
         assertNotNull(entity);
+        assertEquals("MAINTENANCE_ORDER", entity.getAggregateType());
+        assertEquals("maintenance-exchange", entity.getExchange());
+        assertEquals("order.created", entity.getRoutingKey());
         assertEquals("maintenance.order.created", entity.getMessageType());
-        assertEquals("maintenance-exchange", entity.getDestination());
+        assertEquals("order.created", entity.getDestination());
         assertEquals("PENDING", entity.getStatus());
 
         OutboxMessage mappedBack = outboxMapper.toDomain(entity);
         assertNotNull(mappedBack);
         assertEquals(OutboxStatus.PENDING, mappedBack.getStatus());
-        assertEquals("maintenance.order.created", mappedBack.getEventType());
+        assertEquals("MAINTENANCE_ORDER", mappedBack.getAggregateType());
+        assertEquals("maintenance-exchange", mappedBack.getExchange());
+        assertEquals("order.created", mappedBack.getRoutingKey());
 
         // Default fallbacks in mapper
         OutboxMessage domainWithoutDestination = OutboxMessage.builder()

@@ -7,12 +7,12 @@ import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persist
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.repository.SpringDataTechnicianRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 public class TechnicianPersistenceAdapter implements TechnicianRepositoryPort {
@@ -26,6 +26,7 @@ public class TechnicianPersistenceAdapter implements TechnicianRepositoryPort {
     }
 
     @Override
+    @Transactional
     public Technician save(Technician technician) {
         if (technician.getId() == null) {
             technician.setId(UUID.randomUUID());
@@ -36,22 +37,36 @@ public class TechnicianPersistenceAdapter implements TechnicianRepositoryPort {
         technician.setUpdatedAt(LocalDateTime.now());
 
         TechnicianJpaEntity entity = mapper.toEntity(technician);
+
+        // Preservar la contraseña existente si se está actualizando un técnico
+        if (technician.getId() != null) {
+            repository.findById(technician.getId()).ifPresent(existing -> {
+                entity.setPassword(existing.getPassword());
+            });
+        }
+
         return mapper.toDomain(repository.save(entity));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Technician> findById(UUID id) {
         return repository.findById(id).map(mapper::toDomain);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Technician> findByEmail(String email) {
         return repository.findByEmail(email).map(mapper::toDomain);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Technician> findAll(Boolean isActive, int page, int size) {
-        PageRequest pageRequest = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)));
+        int pageNumber = Math.max(0, page > 0 ? page - 1 : 0);
+        int pageSize = Math.min(100, Math.max(1, size));
+        PageRequest pageRequest = PageRequest.of(pageNumber, pageSize);
+
         if (isActive != null) {
             return repository.findByIsActive(isActive, pageRequest).map(mapper::toDomain).getContent();
         }
@@ -59,6 +74,7 @@ public class TechnicianPersistenceAdapter implements TechnicianRepositoryPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public boolean existsByEmail(String email) {
         return repository.existsByEmail(email);
     }
