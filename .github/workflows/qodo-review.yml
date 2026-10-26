@@ -18,12 +18,18 @@ jobs:
       - name: Ejecutar comandos de Qodo
         env:
           CONFIG__GIT_PROVIDER: "github"
+          CONFIG__MODEL: "gemini/gemini-1.5-flash"
           CONFIG__FALLBACK_MODELS: "[]"
+          
+          # Mapeo de claves para LiteLLM y Dynaconf en PR-Agent
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI__GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_AI_STUDIO__GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          
           GITHUB__USER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           echo "Iniciando revisión en $PR_URL con Gemini"
-          pr-agent --pr_url=$PR_URL review --config.model="gemini/gemini-2.0-flash"
-          pr-agent --pr_url=$PR_URL improve --config.model="gemini/gemini-2.0-flash"
+          pr-agent --pr_url=$PR_URL review
+          pr-agent --pr_url=$PR_URL improve
