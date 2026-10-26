@@ -4,7 +4,7 @@ plugins {
 	id 'checkstyle'
 	id 'org.springframework.boot' version '3.4.3'
 	id 'io.spring.dependency-management' version '1.1.7'
-	id 'org.sonarqube' version '5.1.0.4882'
+	id 'org.sonarqube' version '7.5.0.8588'
 }
 
 group = 'co.edu.univalle.fleetops'
@@ -75,7 +75,7 @@ jacocoTestReport {
 	reports {
 		xml.required = true
 		html.required = true
-		html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+		html.outputLocation = layout.buildDirectory.dir('reports/jacocoHtml')
 	}
 	afterEvaluate {
 		classDirectories.setFrom(files(classDirectories.files.collect {
@@ -83,7 +83,6 @@ jacocoTestReport {
 					'co/edu/univalle/fleetops/mantenimiento/config/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/domain/model/**',
 					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 			])
 		}))
@@ -98,7 +97,6 @@ jacocoTestCoverageVerification {
 					'co/edu/univalle/fleetops/mantenimiento/config/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/domain/model/**',
 					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 			])
 		}))
@@ -123,8 +121,8 @@ checkstyle {
 // SonarCloud
 sonar {
 	properties {
-		property 'sonar.projectKey', 'TU-ORGANIZACION_grupo_03_mantenimiento'
-		property 'sonar.organization', 'TU-ORGANIZACION'
+		property 'sonar.projectKey', System.getenv('SONAR_PROJECT_KEY') ?: 'sebas6174_grupo_03_mantenimiento'
+		property 'sonar.organization', System.getenv('SONAR_ORGANIZATION') ?: 'sebastian6174'
 		property 'sonar.host.url', 'https://sonarcloud.io'
 		property 'sonar.coverage.jacoco.xmlReportPaths', 'build/reports/jacoco/test/jacocoTestReport.xml'
 		property 'sonar.coverage.exclusions',
@@ -134,6 +132,9 @@ sonar {
 						'co/edu/univalle/fleetops/mantenimiento/domain/model/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 		property 'sonar.java.source', '21'
+		if (System.getenv('SONAR_TOKEN')) {
+			property 'sonar.token', System.getenv('SONAR_TOKEN')
+		}
 	}
 }
 
