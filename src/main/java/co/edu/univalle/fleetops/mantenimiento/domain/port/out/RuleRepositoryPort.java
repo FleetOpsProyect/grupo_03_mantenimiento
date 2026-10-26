@@ -9,9 +9,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface RuleRepositoryPort {
+
     MaintenanceRule save(MaintenanceRule rule);
+
     Optional<MaintenanceRule> findById(UUID id);
+
     Optional<MaintenanceRule> findActiveRule(RuleScope scope, VehicleCategory category, UUID vehicleId);
+
     Optional<MaintenanceRule> findApplicableRule(UUID vehicleId, VehicleCategory category);
+
     List<MaintenanceRule> findAll();
 }

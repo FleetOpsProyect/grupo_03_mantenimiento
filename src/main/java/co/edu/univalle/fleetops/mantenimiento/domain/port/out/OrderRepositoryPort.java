@@ -8,10 +8,16 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface OrderRepositoryPort {
+
     MaintenanceOrder save(MaintenanceOrder order);
+
     Optional<MaintenanceOrder> findById(UUID id);
+
     Optional<MaintenanceOrder> findActiveOrderByVehicleId(UUID vehicleId);
+
     Optional<MaintenanceOrder> findLatestCompletedOrderByVehicleId(UUID vehicleId);
+
     boolean existsByIncidentId(UUID incidentId);
+
     PagedOrdersResult queryOrders(OrderFilter filter);
 }

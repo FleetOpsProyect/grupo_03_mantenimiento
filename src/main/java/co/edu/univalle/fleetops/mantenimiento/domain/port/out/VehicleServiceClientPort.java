@@ -16,6 +16,8 @@ public interface VehicleServiceClientPort {
     ) {}
 
     List<VehicleSummary> getActiveVehicles();
+
     Optional<VehicleSummary> getVehicleById(UUID vehicleId);
+
     boolean updateVehicleStatus(UUID vehicleId, String newStatus);
 }

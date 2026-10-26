@@ -6,8 +6,12 @@ import java.util.List;
 import java.util.UUID;
 
 public interface OutboxRepositoryPort {
+
     OutboxMessage save(OutboxMessage message);
+
     List<OutboxMessage> findPendingMessages(int limit);
+
     void markAsSent(UUID messageId);
+
     void markAsFailed(UUID messageId, String errorMessage);
 }

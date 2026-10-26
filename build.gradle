@@ -75,7 +75,7 @@ jacocoTestReport {
 	reports {
 		xml.required = true
 		html.required = true
-		html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+		html.outputLocation = layout.buildDirectory.dir('reports/jacocoHtml')
 	}
 	afterEvaluate {
 		classDirectories.setFrom(files(classDirectories.files.collect {
@@ -83,7 +83,6 @@ jacocoTestReport {
 					'co/edu/univalle/fleetops/mantenimiento/config/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/domain/model/**',
 					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 			])
 		}))
@@ -98,7 +97,6 @@ jacocoTestCoverageVerification {
 					'co/edu/univalle/fleetops/mantenimiento/config/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
 					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/domain/model/**',
 					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 			])
 		}))

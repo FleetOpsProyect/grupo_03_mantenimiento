@@ -6,6 +6,8 @@ import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.MaintenanceStat
 import java.util.UUID;
 
 public interface UpdateOrderStatusUseCase {
+
     MaintenanceOrder updateStatus(UUID orderId, MaintenanceStatus newStatus, String completedByType, String completedById);
+
     MaintenanceOrder assignTechnician(UUID orderId, UUID technicianId);
 }

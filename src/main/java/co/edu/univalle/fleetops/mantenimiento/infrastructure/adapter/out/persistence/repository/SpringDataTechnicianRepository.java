@@ -11,7 +11,10 @@ import java.util.UUID;
 
 @Repository
 public interface SpringDataTechnicianRepository extends JpaRepository<TechnicianJpaEntity, UUID> {
+
     Optional<TechnicianJpaEntity> findByEmail(String email);
+
     boolean existsByEmail(String email);
+
     Page<TechnicianJpaEntity> findByIsActive(Boolean isActive, Pageable pageable);
 }
