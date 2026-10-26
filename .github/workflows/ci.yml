@@ -81,7 +81,7 @@ jobs:
           if [ -z "$SONAR_TOKEN" ]; then
             echo "::warning ::SONAR_TOKEN is not configured in repository secrets. Skipping SonarCloud analysis."
           else
-            ./gradlew sonar -Dsonar.token="$SONAR_TOKEN" --no-daemon --info
+            ./gradlew sonar -Dsonar.token="$SONAR_TOKEN" --no-daemon --info --stacktrace
           fi
 
       - name: 6. Build Executable Boot JAR
