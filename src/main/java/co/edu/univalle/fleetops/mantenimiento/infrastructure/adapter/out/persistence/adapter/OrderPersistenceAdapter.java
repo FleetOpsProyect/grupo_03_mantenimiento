@@ -2,6 +2,7 @@ package co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persis
 
 import co.edu.univalle.fleetops.mantenimiento.domain.model.MaintenanceOrder;
 import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.MaintenanceStatus;
+import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.MaintenanceType;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.in.QueryOrdersUseCase.OrderFilter;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.in.QueryOrdersUseCase.PagedOrdersResult;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.out.OrderRepositoryPort;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -37,6 +39,7 @@ public class OrderPersistenceAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    @Transactional
     public MaintenanceOrder save(MaintenanceOrder order) {
         if (order.getId() == null) {
             order.setId(UUID.randomUUID());
@@ -51,11 +54,13 @@ public class OrderPersistenceAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<MaintenanceOrder> findById(UUID id) {
         return repository.findById(id).map(mapper::toDomain);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<MaintenanceOrder> findActiveOrderByVehicleId(UUID vehicleId) {
         return repository.findFirstByVehicleIdAndStatusIn(
                 vehicleId,
@@ -64,6 +69,20 @@ public class OrderPersistenceAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<MaintenanceOrder> findActiveOrderByVehicleIdAndType(UUID vehicleId, MaintenanceType maintenanceType) {
+        if (maintenanceType == null) {
+            return findActiveOrderByVehicleId(vehicleId);
+        }
+        return repository.findFirstByVehicleIdAndMaintenanceTypeAndStatusInOrderByCreatedAtDesc(
+                vehicleId,
+                maintenanceType.name(),
+                Set.of(MaintenanceStatus.SCHEDULED_PENDING.name(), MaintenanceStatus.IN_PROGRESS.name())
+        ).map(mapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<MaintenanceOrder> findLatestCompletedOrderByVehicleId(UUID vehicleId) {
         return repository.findFirstByVehicleIdAndStatusOrderByCompletedAtDesc(
                 vehicleId,
@@ -72,11 +91,13 @@ public class OrderPersistenceAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public boolean existsByIncidentId(UUID incidentId) {
         return repository.existsByIncidentId(incidentId);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PagedOrdersResult queryOrders(OrderFilter filter) {
         Specification<MaintenanceOrderJpaEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -97,21 +118,24 @@ public class OrderPersistenceAdapter implements OrderRepositoryPort {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        int pageNumber = Math.max(0, filter.page() > 0 ? filter.page() - 1 : 0); // paginación 0-based interna
+        int pageNumber = Math.max(0, filter.page() > 0 ? filter.page() - 1 : 0);
         int pageSize = Math.min(100, Math.max(1, filter.size()));
         PageRequest pageRequest = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<MaintenanceOrderJpaEntity> page = repository.findAll(spec, pageRequest);
         List<MaintenanceOrder> content = page.getContent().stream().map(mapper::toDomain).collect(Collectors.toList());
 
-        // Resumen requerido por Reportes Operativos (bloque resumen)
         Map<String, Object> summary = new HashMap<>();
-        Double avgHours = repository.calculateAverageRepairHours();
+        Double avgHours = repository.calculateAverageRepairHoursFiltered(
+                filter.vehicleId(),
+                filter.technicianId(),
+                filter.maintenanceType() != null ? filter.maintenanceType().name() : null
+        );
         summary.put("avg_repair_hours", avgHours != null ? Math.round(avgHours * 100.0) / 100.0 : null);
 
         return new PagedOrdersResult(
                 content,
-                page.getNumber() + 1, // retornar 1-based al cliente según la HU
+                page.getNumber() + 1,
                 page.getSize(),
                 page.getTotalElements(),
                 page.getTotalPages(),

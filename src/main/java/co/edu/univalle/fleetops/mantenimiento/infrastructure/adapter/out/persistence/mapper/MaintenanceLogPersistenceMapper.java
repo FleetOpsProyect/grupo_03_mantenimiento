@@ -5,9 +5,11 @@ import co.edu.univalle.fleetops.mantenimiento.domain.model.MaintenanceLogAttachm
 import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.LogType;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceLogAttachmentJpaEntity;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceLogJpaEntity;
+import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceOrderJpaEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
@@ -27,8 +29,8 @@ public class MaintenanceLogPersistenceMapper {
                 .authorId(entity.getAuthorId())
                 .authorName(entity.getAuthorName())
                 .registeredAt(entity.getRegisteredAt())
-                .attachments(entity.getAttachments() != null ?
-                        entity.getAttachments().stream().map(this::toAttachmentDomain).collect(Collectors.toList())
+                .attachments(entity.getAttachments() != null
+                        ? entity.getAttachments().stream().map(this::toAttachmentDomain).collect(Collectors.toList())
                         : new ArrayList<>())
                 .build();
     }
@@ -37,9 +39,12 @@ public class MaintenanceLogPersistenceMapper {
         if (domain == null) {
             return null;
         }
-        return MaintenanceLogJpaEntity.builder()
+
+        MaintenanceLogJpaEntity entity = MaintenanceLogJpaEntity.builder()
                 .id(domain.getId())
-                .maintenanceOrderId(domain.getOrderId())
+                .order(domain.getOrderId() != null
+                        ? MaintenanceOrderJpaEntity.builder().id(domain.getOrderId()).build()
+                        : null)
                 .logType(domain.getLogType() != null ? domain.getLogType().name() : null)
                 .notes(domain.getNotes())
                 .costDelta(domain.getCostDelta())
@@ -48,6 +53,21 @@ public class MaintenanceLogPersistenceMapper {
                 .authorName(domain.getAuthorName())
                 .registeredAt(domain.getRegisteredAt())
                 .build();
+
+        if (domain.getAttachments() != null) {
+            List<MaintenanceLogAttachmentJpaEntity> attachments = domain.getAttachments().stream()
+                    .map(attDomain -> {
+                        MaintenanceLogAttachmentJpaEntity attEntity = toAttachmentEntity(attDomain);
+                        if (attEntity != null) {
+                            attEntity.setMaintenanceLog(entity);
+                        }
+                        return attEntity;
+                    })
+                    .collect(Collectors.toList());
+            entity.setAttachments(attachments);
+        }
+
+        return entity;
     }
 
     public MaintenanceLogAttachment toAttachmentDomain(MaintenanceLogAttachmentJpaEntity entity) {
@@ -71,7 +91,9 @@ public class MaintenanceLogPersistenceMapper {
         }
         return MaintenanceLogAttachmentJpaEntity.builder()
                 .id(domain.getId())
-                .maintenanceLogId(domain.getMaintenanceLogId())
+                .maintenanceLog(domain.getMaintenanceLogId() != null
+                        ? MaintenanceLogJpaEntity.builder().id(domain.getMaintenanceLogId()).build()
+                        : null)
                 .fileUrl(domain.getFileUrl())
                 .fileName(domain.getFileName())
                 .mimeType(domain.getMimeType())

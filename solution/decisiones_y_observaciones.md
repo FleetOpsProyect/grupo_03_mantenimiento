@@ -161,3 +161,33 @@ Para Windows PowerShell se utiliza `.\gradlew.bat` (en Linux/macOS o CI/CD usar 
   .\gradlew.bat clean build
   ```
 
+---
+
+## 8. Correcciones y Mejoras de Arquitectura y Persistencia (Code Review)
+Tras la revisión de código automatizada (Qodo / CI), se adoptaron las siguientes decisiones de diseño para garantizar robustez, confiabilidad y concurrencia:
+
+1. **Relaciones JPA Bidireccionales Estándar:**
+   - Se reemplazó el `mappedBy` que apuntaba a columnas escalares UUID (`maintenanceOrderId`, `maintenanceLogId`) por asociaciones bidireccionales `@ManyToOne` (`order` y `maintenanceLog`) con `@OneToMany(mappedBy = "order")` y `@OneToMany(mappedBy = "maintenanceLog")`.
+   - Se evita `LazyInitializationException` mediante queries con `LEFT JOIN FETCH` y `@EntityGraph(attributePaths = {"logs"})`, manteniendo `spring.jpa.open-in-view: false`.
+
+2. **Migración Flyway V2 (`V2__schema_fixes.sql`):**
+   - Inclusión de `cancel_reason TEXT` y `assigned_workshop VARCHAR(255)` en `maintenance_order`.
+   - Inclusión de `routine_description TEXT` en `preventive_rule`.
+   - Inclusión de `aggregate_type VARCHAR(100)`, `exchange VARCHAR(255)` y `routing_key VARCHAR(255)` en `outbox_message`.
+
+3. **Validaciones en Dominio y Persistencia:**
+   - `MaintenanceOrder.complete`: Requiere obligatoriamente los datos de atribución (`completedByType` y `completedById`), impidiendo que órdenes finalizadas queden anónimas.
+   - `RulePersistenceAdapter.save`: Invoca `rule.validate()` antes de persistir, asegurando que ninguna regla con umbrales inválidos (<1,000 km, >50,000 km o días fuera de rango) pueda almacenarse.
+
+4. **Concurrencia en Transactional Outbox:**
+   - La consulta `findPendingToProcessForUpdate` incorpora `FOR UPDATE SKIP LOCKED` para permitir que múltiples instancias del microservicio o ejecuciones concurrentes del scheduler procesen mensajes sin duplicación ni bloqueos.
+   - Reintento con backoff exponencial real: $10s \times 2^{(\text{attempts}-1)}$ hasta un máximo de 3 intentos antes de marcar `FAILED`.
+
+5. **Armonización de Paginación y Consultas Agregadas:**
+   - Estandarización de páginas 1-based en `TechnicianPersistenceAdapter` (`page > 0 ? page - 1 : 0`), alineándose con el contrato de `OrderPersistenceAdapter`.
+   - El cálculo de `avg_repair_hours` en reportes operativos toma en cuenta los filtros de vehículo, técnico y tipo de mantenimiento mediante parámetros opcionales.
+
+6. **Endurecimiento de Actuator:**
+   - Se restringen los endpoints públicos de Spring Actuator a `health` e `info` con `show-details: when_authorized`, protegiendo métricas operativas y datos de infraestructura.
+
+

@@ -1,6 +1,7 @@
 package co.edu.univalle.fleetops.mantenimiento.domain.port.out;
 
 import co.edu.univalle.fleetops.mantenimiento.domain.model.MaintenanceOrder;
+import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.MaintenanceType;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.in.QueryOrdersUseCase.OrderFilter;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.in.QueryOrdersUseCase.PagedOrdersResult;
 
@@ -14,6 +15,8 @@ public interface OrderRepositoryPort {
     Optional<MaintenanceOrder> findById(UUID id);
 
     Optional<MaintenanceOrder> findActiveOrderByVehicleId(UUID vehicleId);
+
+    Optional<MaintenanceOrder> findActiveOrderByVehicleIdAndType(UUID vehicleId, MaintenanceType maintenanceType);
 
     Optional<MaintenanceOrder> findLatestCompletedOrderByVehicleId(UUID vehicleId);
 

@@ -56,6 +56,12 @@ public class MaintenanceOrderJpaEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
+    @Column(name = "assigned_workshop")
+    private String assignedWorkshop;
+
     @Column(name = "completed_by_type")
     private String completedByType;
 
@@ -75,6 +81,6 @@ public class MaintenanceOrderJpaEntity {
     private LocalDateTime updatedAt;
 
     @Builder.Default
-    @OneToMany(mappedBy = "maintenanceOrderId", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<MaintenanceLogJpaEntity> logs = new ArrayList<>();
 }

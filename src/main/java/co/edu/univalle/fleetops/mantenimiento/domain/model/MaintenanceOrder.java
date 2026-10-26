@@ -64,6 +64,9 @@ public class MaintenanceOrder {
         if (this.status != MaintenanceStatus.IN_PROGRESS) {
             throw new InvalidStateTransitionException("Solo se puede completar una orden que esté EN_PROCESO (IN_PROGRESS)");
         }
+        if (completedByType == null || completedByType.isBlank() || completedById == null || completedById.isBlank()) {
+            throw new InvalidStateTransitionException("Se requiere el tipo y el identificador de quien completa la orden");
+        }
         this.status = MaintenanceStatus.COMPLETED;
         this.completedByType = completedByType;
         this.completedById = completedById;

@@ -6,8 +6,8 @@ import co.edu.univalle.fleetops.mantenimiento.domain.port.out.OutboxRepositoryPo
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.OutboxMessageJpaEntity;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.mapper.OutboxMessagePersistenceMapper;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.repository.SpringDataOutboxMessageRepository;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +26,7 @@ public class OutboxPersistenceAdapter implements OutboxRepositoryPort {
     }
 
     @Override
+    @Transactional
     public OutboxMessage save(OutboxMessage message) {
         if (message.getId() == null) {
             message.setId(UUID.randomUUID());
@@ -45,15 +46,17 @@ public class OutboxPersistenceAdapter implements OutboxRepositoryPort {
     }
 
     @Override
+    @Transactional
     public List<OutboxMessage> findPendingMessages(int limit) {
-        PageRequest pageRequest = PageRequest.of(0, Math.min(100, Math.max(1, limit)));
-        return repository.findPendingToProcess(LocalDateTime.now(), pageRequest)
+        int batchLimit = Math.min(100, Math.max(1, limit));
+        return repository.findPendingToProcessForUpdate(LocalDateTime.now(), batchLimit)
                 .stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
+    @Transactional
     public void markAsSent(UUID messageId) {
         repository.findById(messageId).ifPresent(entity -> {
             entity.setStatus(OutboxStatus.SENT.name());
@@ -63,6 +66,7 @@ public class OutboxPersistenceAdapter implements OutboxRepositoryPort {
     }
 
     @Override
+    @Transactional
     public void markAsFailed(UUID messageId, String errorMessage) {
         repository.findById(messageId).ifPresent(entity -> {
             entity.setAttempts(entity.getAttempts() + 1);
@@ -70,8 +74,9 @@ public class OutboxPersistenceAdapter implements OutboxRepositoryPort {
             if (entity.getAttempts() >= 3) {
                 entity.setStatus(OutboxStatus.FAILED.name());
             } else {
-                // Backoff exponencial para el siguiente intento
-                entity.setNextAttemptAt(LocalDateTime.now().plusSeconds(10L * entity.getAttempts()));
+                // Backoff exponencial real: 10s para intento 1, 20s para intento 2
+                long delaySeconds = 10L * (1L << Math.min(entity.getAttempts() - 1, 6));
+                entity.setNextAttemptAt(LocalDateTime.now().plusSeconds(delaySeconds));
             }
             repository.save(entity);
         });

@@ -28,6 +28,8 @@ public class RulePersistenceAdapter implements RuleRepositoryPort {
 
     @Override
     public MaintenanceRule save(MaintenanceRule rule) {
+        rule.validate();
+
         if (rule.getId() == null) {
             rule.setId(UUID.randomUUID());
         }

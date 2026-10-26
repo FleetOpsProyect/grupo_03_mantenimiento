@@ -2,7 +2,10 @@ package co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persis
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,8 +29,9 @@ public class MaintenanceLogAttachmentJpaEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "maintenance_log_id", nullable = false)
-    private UUID maintenanceLogId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "maintenance_log_id", nullable = false)
+    private MaintenanceLogJpaEntity maintenanceLog;
 
     @Column(name = "file_url", nullable = false, length = 1000)
     private String fileUrl;
@@ -43,4 +47,8 @@ public class MaintenanceLogAttachmentJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public UUID getMaintenanceLogId() {
+        return maintenanceLog != null ? maintenanceLog.getId() : null;
+    }
 }

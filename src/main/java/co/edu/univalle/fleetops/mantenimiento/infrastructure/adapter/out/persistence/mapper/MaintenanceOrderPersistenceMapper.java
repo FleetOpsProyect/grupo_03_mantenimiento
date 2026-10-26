@@ -4,10 +4,12 @@ import co.edu.univalle.fleetops.mantenimiento.domain.model.MaintenanceOrder;
 import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.MaintenanceOrigin;
 import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.MaintenanceStatus;
 import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.MaintenanceType;
+import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceLogJpaEntity;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceOrderJpaEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
@@ -33,14 +35,16 @@ public class MaintenanceOrderPersistenceMapper {
                 .origin(entity.getOrigin() != null ? MaintenanceOrigin.valueOf(entity.getOrigin()) : null)
                 .currentMileage(entity.getCurrentMileage())
                 .description(entity.getDescription())
+                .reason(entity.getCancelReason())
+                .assignedWorkshop(entity.getAssignedWorkshop())
                 .completedByType(entity.getCompletedByType())
                 .completedById(entity.getCompletedById())
                 .totalCost(entity.getTotalCost())
                 .completedAt(entity.getCompletedAt())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
-                .logs(entity.getLogs() != null ?
-                        entity.getLogs().stream().map(logMapper::toDomain).collect(Collectors.toList())
+                .logs(entity.getLogs() != null
+                        ? entity.getLogs().stream().map(logMapper::toDomain).collect(Collectors.toList())
                         : new ArrayList<>())
                 .build();
     }
@@ -49,7 +53,8 @@ public class MaintenanceOrderPersistenceMapper {
         if (domain == null) {
             return null;
         }
-        return MaintenanceOrderJpaEntity.builder()
+
+        MaintenanceOrderJpaEntity entity = MaintenanceOrderJpaEntity.builder()
                 .id(domain.getId())
                 .vehicleId(domain.getVehicleId())
                 .technicianId(domain.getTechnicianId())
@@ -59,6 +64,8 @@ public class MaintenanceOrderPersistenceMapper {
                 .origin(domain.getOrigin() != null ? domain.getOrigin().name() : null)
                 .currentMileage(domain.getCurrentMileage())
                 .description(domain.getDescription())
+                .cancelReason(domain.getReason())
+                .assignedWorkshop(domain.getAssignedWorkshop())
                 .completedByType(domain.getCompletedByType())
                 .completedById(domain.getCompletedById())
                 .totalCost(domain.getTotalCost())
@@ -66,5 +73,20 @@ public class MaintenanceOrderPersistenceMapper {
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
                 .build();
+
+        if (domain.getLogs() != null) {
+            List<MaintenanceLogJpaEntity> logEntities = domain.getLogs().stream()
+                    .map(logDomain -> {
+                        MaintenanceLogJpaEntity logEntity = logMapper.toEntity(logDomain);
+                        if (logEntity != null) {
+                            logEntity.setOrder(entity);
+                        }
+                        return logEntity;
+                    })
+                    .collect(Collectors.toList());
+            entity.setLogs(logEntities);
+        }
+
+        return entity;
     }
 }

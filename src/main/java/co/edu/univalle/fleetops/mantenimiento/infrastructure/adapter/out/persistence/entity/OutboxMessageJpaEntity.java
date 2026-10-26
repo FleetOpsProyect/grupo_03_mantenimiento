@@ -31,8 +31,17 @@ public class OutboxMessageJpaEntity {
     @Column(name = "maintenance_order_id")
     private UUID maintenanceOrderId;
 
+    @Column(name = "aggregate_type")
+    private String aggregateType;
+
     @Column(name = "message_type", nullable = false)
     private String messageType;
+
+    @Column(name = "exchange")
+    private String exchange;
+
+    @Column(name = "routing_key")
+    private String routingKey;
 
     @Column(name = "destination", nullable = false)
     private String destination;

@@ -96,6 +96,20 @@ class DomainModelTest {
                 .build();
         inProgress.complete("SUPERVISOR", "sup-1", null);
         assertEquals(BigDecimal.ZERO, inProgress.getTotalCost());
+
+        // Completar sin atribución debe fallar y mantener la orden EN_PROCESO
+        MaintenanceOrder inProgressAttribution = MaintenanceOrder.builder()
+                .status(MaintenanceStatus.IN_PROGRESS)
+                .build();
+        assertThrows(InvalidStateTransitionException.class, () ->
+                inProgressAttribution.complete(null, "sup-1", BigDecimal.TEN)
+        );
+        assertEquals(MaintenanceStatus.IN_PROGRESS, inProgressAttribution.getStatus());
+
+        assertThrows(InvalidStateTransitionException.class, () ->
+                inProgressAttribution.complete("SUPERVISOR", "   ", BigDecimal.TEN)
+        );
+        assertEquals(MaintenanceStatus.IN_PROGRESS, inProgressAttribution.getStatus());
     }
 
     @Test
