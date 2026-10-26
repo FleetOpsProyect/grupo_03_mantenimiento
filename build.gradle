@@ -122,7 +122,7 @@ checkstyle {
 sonar {
 	properties {
 		property 'sonar.projectKey', System.getenv('SONAR_PROJECT_KEY') ?: 'FleetOpsProyect_grupo_03_mantenimiento'
-		property 'sonar.organization', System.getenv('SONAR_ORGANIZATION') ?: 'fleetopsproyect'
+		property 'sonar.organization', System.getenv('SONAR_ORGANIZATION') ?: 'fleetopsproyect-1'
 		property 'sonar.host.url', 'https://sonarcloud.io'
 		property 'sonar.coverage.jacoco.xmlReportPaths', 'build/reports/jacoco/test/jacocoTestReport.xml'
 		property 'sonar.coverage.exclusions',
@@ -132,6 +132,9 @@ sonar {
 						'co/edu/univalle/fleetops/mantenimiento/domain/model/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 		property 'sonar.java.source', '21'
+		if (System.getenv('SONAR_TOKEN')) {
+			property 'sonar.token', System.getenv('SONAR_TOKEN')
+		}
 	}
 }
 
