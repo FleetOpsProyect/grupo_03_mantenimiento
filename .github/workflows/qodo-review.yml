@@ -19,6 +19,7 @@ jobs:
         env:
           CONFIG__GIT_PROVIDER: "github"
           CONFIG__MODEL: "gemini/gemini-1.5-flash"
+          CONFIG__CUSTOM_MODEL_MAX_TOKENS: 32000
           CONFIG__FALLBACK_MODELS: "[]"
           
           # Mapeo de claves para LiteLLM y Dynaconf en PR-Agent
