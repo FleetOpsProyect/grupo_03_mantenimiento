@@ -20,7 +20,7 @@ jobs:
           CONFIG__GIT_PROVIDER: "github"
           CONFIG__MODEL: "gemini/gemini-3.8-flash"
           CONFIG__CUSTOM_MODEL_MAX_TOKENS: 32000
-          CONFIG__FALLBACK_MODELS: "[]"
+          CONFIG__FALLBACK_MODELS: '["gemini/gemini-3.5-flash-lite"]'
           
           # Mapeo de claves para LiteLLM y Dynaconf en PR-Agent
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
