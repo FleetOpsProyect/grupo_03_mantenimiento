@@ -184,3 +184,11 @@ flowchart LR
 1. **Rama base de desarrollo:** Todos los Pull Requests deben apuntar a la rama `develop`.
 2. **Branch Protection:** No se permite push directo a `main` ni a `develop`.
 3. **Quality Gate:** Todo PR debe pasar obligatoriamente el pipeline de CI (Checkstyle + Tests + Cobertura $\ge$ 80%) y contar con la aprobación de al menos un revisor.
+
+## 🚢 Despliegue continuo con Docker y AWS
+
+El workflow `.github/workflows/cd.yml` se ejecuta automáticamente con cada push sobre `main`. Construye la imagen con el `Dockerfile`, publica `ckancord33/fleetops-mantenimiento:latest` y una etiqueta con el SHA del commit en Docker Hub, copia `docker-compose.prod.yml` al servidor AWS y actualiza el servicio con `docker compose pull` y `docker compose up -d --no-build`. El CI se ejecuta en `develop`; este CD no depende de ese workflow.
+
+El servidor debe tener Docker Engine y Docker Compose v2 instalados. Para el usuario `ec2-user`, crea `/home/ec2-user/fleetops-mantenimiento/.env` directamente en el servidor; el workflow nunca sube ese archivo porque contiene credenciales. Debe incluir al menos `PORT`, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` y `VEHICLES_SERVICE_URL`.
+
+Configura en GitHub Actions los secretos `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `AWS_HOST`, `AWS_USER` y `AWS_SSH_PRIVATE_KEY`. `AWS_SSH_PORT` es opcional y por defecto usa el puerto `22`. El token de Docker Hub debe tener permiso de lectura y escritura sobre el repositorio `ckancord33/fleetops-mantenimiento`.
