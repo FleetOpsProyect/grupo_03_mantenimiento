@@ -167,7 +167,7 @@ Todos los mensajes se serializan en formato JSON bajo el estándar abierto **Clo
 
 ## 🛡️ Flujo de Integración Continua (CI) y GitFlow
 
-El repositorio cuenta con un pipeline automatizado en **GitHub Actions** (`.github/workflows/ci.yml`) que valida cada Pull Request hacia `develop` o `main`:
+El repositorio cuenta con un pipeline automatizado en **GitHub Actions** (`.github/workflows/ci.yml`) que valida cada Pull Request hacia `develop`:
 
 ```mermaid
 flowchart LR
