@@ -1,0 +1,13 @@
+services:
+  maintenance:
+    image: ${MAINTENANCE_IMAGE:-fleetops/maintenance:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8083}:8083"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

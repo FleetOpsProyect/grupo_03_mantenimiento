@@ -1,0 +1,149 @@
+plugins {
+	id 'java'
+	id 'jacoco'
+	id 'checkstyle'
+	id 'org.springframework.boot' version '3.4.3'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.sonarqube' version '7.5.0.8588'
+}
+
+group = 'co.edu.univalle.fleetops'
+version = '1.0.0-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+dependencies {
+	// Spring Boot Core & Web
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+	// Resiliencia (Circuit Breaker)
+	implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+
+	// Database & Migrations (Supabase / PostgreSQL / Flyway)
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'org.postgresql:postgresql'
+
+	// Metrics & Observability (Prometheus)
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+	// Swagger / OpenAPI
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+
+	// Lombok
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	testCompileOnly 'org.projectlombok:lombok'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	// Developer Tools
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+	// Testing
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.amqp:spring-rabbit-test'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:postgresql'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// JaCoCo Coverage
+jacoco {
+	toolVersion = '0.8.12'
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+		html.required = true
+		html.outputLocation = layout.buildDirectory.dir('reports/jacocoHtml')
+	}
+	afterEvaluate {
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+					'co/edu/univalle/fleetops/mantenimiento/config/**',
+					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
+					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
+					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+			])
+		}))
+	}
+}
+
+jacocoTestCoverageVerification {
+	dependsOn jacocoTestReport
+	afterEvaluate {
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+					'co/edu/univalle/fleetops/mantenimiento/config/**',
+					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
+					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
+					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+			])
+		}))
+	}
+	violationRules {
+		rule {
+			limit {
+				minimum = 0.80
+			}
+		}
+	}
+}
+
+// Checkstyle
+checkstyle {
+	toolVersion = '10.21.4'
+	configFile = file('checkstyle.xml')
+	ignoreFailures = false
+	showViolations = true
+}
+
+// SonarCloud
+sonar {
+	properties {
+		property 'sonar.projectKey', System.getenv('SONAR_PROJECT_KEY') ?: 'sebas6174_grupo_03_mantenimiento'
+		property 'sonar.organization', System.getenv('SONAR_ORGANIZATION') ?: 'sebastian6174'
+		property 'sonar.host.url', 'https://sonarcloud.io'
+		property 'sonar.coverage.jacoco.xmlReportPaths', 'build/reports/jacoco/test/jacocoTestReport.xml'
+		property 'sonar.coverage.exclusions',
+				'co/edu/univalle/fleetops/mantenimiento/config/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/domain/model/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+		property 'sonar.java.source', '21'
+		if (System.getenv('SONAR_TOKEN')) {
+			property 'sonar.token', System.getenv('SONAR_TOKEN')
+		}
+	}
+}
+
+// Tareas de ejecucion y verificacion
+test {
+	useJUnitPlatform()
+	finalizedBy jacocoTestReport
+}
+
+check {
+	dependsOn jacocoTestCoverageVerification
+}

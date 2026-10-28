@@ -1,0 +1,116 @@
+server:
+  port: ${PORT:8083}
+
+spring:
+  application:
+    name: maintenance-service
+
+  # ====================================================================
+  # Configuración de Base de Datos (PostgreSQL / Supabase)
+  # Puedes sobreescribir estos valores con variables de entorno o en .env
+  # ====================================================================
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fleetops_maintenance}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: MaintenanceHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1800000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    show-sql: false
+
+  # Migraciones de esquema Flyway
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  # ====================================================================
+  # Broker de Mensajería (RabbitMQ)
+  # ====================================================================
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 1000ms
+          max-attempts: 3
+          multiplier: 2.0
+
+# ====================================================================
+# Integración con Otros Microservicios (Rutas / URLs)
+# ====================================================================
+services:
+  vehicles:
+    url: ${VEHICLES_SERVICE_URL:http://localhost:8081}
+    timeout-ms: 5000
+
+# ====================================================================
+# Tareas Programadas (Scheduler)
+# ====================================================================
+scheduler:
+  preventive-inspection:
+    cron: ${SCHEDULER_CRON:0 0 2 * * *}
+    zone: ${SCHEDULER_ZONE:America/Bogota}
+  outbox-relay:
+    fixed-delay-ms: 5000
+
+# ====================================================================
+# Resiliencia (Circuit Breaker con Resilience4j)
+# ====================================================================
+resilience4j:
+  circuitbreaker:
+    instances:
+      vehicleService:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50.0
+        wait-duration-in-open-state: 10000ms
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+
+# ====================================================================
+# Observabilidad y Métricas (Actuator, Prometheus)
+# ====================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# ====================================================================
+# Trazabilidad de Logs (X-Correlation-Id)
+# ====================================================================
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId}] %-5level %logger{36} - %msg%n"
+  level:
+    root: INFO
+    co.edu.univalle.fleetops.mantenimiento: DEBUG

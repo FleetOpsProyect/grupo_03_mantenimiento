@@ -1,0 +1,116 @@
+# Ejecuta el despliegue cuando main recibe cambios o manualmente desde GitHub.
+name: Continuous Deployment (Docker Hub + AWS)
+
+on:
+  # Cada push a main representa una version autorizada para produccion.
+  push:
+    branches:
+      - main
+  # Permite lanzar el despliegue manualmente.
+  workflow_dispatch:
+
+# Evita dos despliegues de produccion simultaneos.
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+# Valores compartidos por los pasos del workflow.
+env:
+  IMAGE_NAME: ckancord33/fleetops-mantenimiento
+  DEPLOY_PATH: /home/ec2-user/fleetops-mantenimiento
+
+jobs:
+  deploy:
+    name: Build, publish and deploy
+    runs-on: ubuntu-latest
+    # El workflow solo necesita leer el codigo del repositorio.
+    permissions:
+      contents: read
+
+    steps:
+      # Descarga el commit que se va a empaquetar y desplegar.
+      - name: Checkout deployed commit
+        uses: actions/checkout@v4
+
+      # Guarda el SHA para crear una etiqueta inmutable de la imagen.
+      - name: Set image tags
+        id: image
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          echo "sha=${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
+
+      # Autentica GitHub Actions contra Docker Hub.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Habilita el constructor utilizado para crear y publicar la imagen.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Construye la imagen y publica latest junto con el SHA del commit.
+      - name: Build and push production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ steps.image.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Crea la carpeta de despliegue en el servidor AWS.
+      - name: Prepare deployment directory
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT || 22 }}
+          script: |
+            set -eu
+            mkdir -p "${{ env.DEPLOY_PATH }}"
+
+      # Copia el Compose, pero conserva el .env privado que ya existe en AWS.
+      - name: Upload production Compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT || 22 }}
+          source: docker-compose.prod.yml
+          target: ${{ env.DEPLOY_PATH }}
+
+      # Inicia sesion en Docker Hub, descarga la imagen y recrea el servicio.
+      - name: Pull image and restart production service
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ steps.image.outputs.sha }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT || 22 }}
+          envs: IMAGE,DOCKERHUB_USERNAME,DOCKERHUB_TOKEN
+          script: |
+            # Hace que cualquier error detenga el despliegue.
+            set -eu
+            cd "${{ env.DEPLOY_PATH }}"
+            # Evita arrancar la aplicacion si falta la configuracion privada.
+            test -f .env
+            # El login permite descargar imagenes privadas de Docker Hub.
+            printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+            # Descarga exactamente la imagen construida para este commit.
+            MAINTENANCE_IMAGE="$IMAGE" docker compose -f docker-compose.prod.yml pull maintenance
+            # Actualiza el contenedor sin compilar en el servidor.
+            MAINTENANCE_IMAGE="$IMAGE" docker compose -f docker-compose.prod.yml up -d --no-build maintenance
+            # Elimina capas antiguas que ya no usa ningun contenedor.
+            docker image prune -f
