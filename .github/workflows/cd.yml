@@ -30,7 +30,7 @@ jobs:
     steps:
       # Descarga el commit que se va a empaquetar y desplegar.
       - name: Checkout deployed commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # Guarda el SHA para crear una etiqueta inmutable de la imagen.
       - name: Set image tags
@@ -42,18 +42,18 @@ jobs:
 
       # Autentica GitHub Actions contra Docker Hub.
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Habilita el constructor utilizado para crear y publicar la imagen.
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       # Construye la imagen y publica latest junto con el SHA del commit.
       - name: Build and push production image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: ./Dockerfile
@@ -66,7 +66,7 @@ jobs:
 
       # Crea la carpeta de despliegue en el servidor AWS.
       - name: Prepare deployment directory
-        uses: appleboy/ssh-action@v1.2.2
+        uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
         with:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
@@ -78,7 +78,7 @@ jobs:
 
       # Copia el Compose, pero conserva el .env privado que ya existe en AWS.
       - name: Upload production Compose file
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634 # v0.1.7
         with:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
@@ -89,7 +89,7 @@ jobs:
 
       # Inicia sesion en Docker Hub, descarga la imagen y recrea el servicio.
       - name: Pull image and restart production service
-        uses: appleboy/ssh-action@v1.2.2
+        uses: appleboy/ssh-action@2ead5e36573f08b82fbfce1504f1a4b05a647c6f # v1.2.2
         env:
           IMAGE: ${{ env.IMAGE_NAME }}:${{ steps.image.outputs.sha }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
