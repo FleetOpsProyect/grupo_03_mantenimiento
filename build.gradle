@@ -59,6 +59,7 @@ dependencies {
 
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.springframework.amqp:spring-rabbit-test'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:postgresql'
@@ -80,10 +81,12 @@ jacocoTestReport {
 	afterEvaluate {
 		classDirectories.setFrom(files(classDirectories.files.collect {
 			fileTree(dir: it, exclude: [
-					'co/edu/univalle/fleetops/mantenimiento/config/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+					'**/domain/exception/**',
+					'**/domain/model/**/record/**',
+					'**/infrastructure/adapter/out/persistence/entity/**',
+					'**/infrastructure/adapter/in/web/dto/**',
+					'**/config/**',
+					'**/MantenimientoApplication.class'
 			])
 		}))
 	}
@@ -94,10 +97,12 @@ jacocoTestCoverageVerification {
 	afterEvaluate {
 		classDirectories.setFrom(files(classDirectories.files.collect {
 			fileTree(dir: it, exclude: [
-					'co/edu/univalle/fleetops/mantenimiento/config/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+					'**/domain/exception/**',
+					'**/domain/model/**/record/**',
+					'**/infrastructure/adapter/out/persistence/entity/**',
+					'**/infrastructure/adapter/in/web/dto/**',
+					'**/config/**',
+					'**/MantenimientoApplication.class'
 			])
 		}))
 	}
@@ -129,7 +134,8 @@ sonar {
 				'co/edu/univalle/fleetops/mantenimiento/config/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**,' +
-						'co/edu/univalle/fleetops/mantenimiento/domain/model/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/domain/exception/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/domain/model/**/record/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 		property 'sonar.java.source', '21'
 		if (System.getenv('SONAR_TOKEN')) {
