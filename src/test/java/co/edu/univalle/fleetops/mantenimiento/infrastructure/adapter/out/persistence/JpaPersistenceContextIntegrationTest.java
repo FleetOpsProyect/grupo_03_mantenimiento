@@ -1,5 +1,6 @@
 package co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence;
 
+import co.edu.univalle.fleetops.mantenimiento.AbstractIntegrationTest;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceLogAttachmentJpaEntity;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceLogJpaEntity;
 import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence.entity.MaintenanceOrderJpaEntity;
@@ -8,7 +9,6 @@ import co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persist
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -21,8 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
-class JpaPersistenceContextIntegrationTest {
+class JpaPersistenceContextIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private SpringDataMaintenanceOrderRepository orderRepository;

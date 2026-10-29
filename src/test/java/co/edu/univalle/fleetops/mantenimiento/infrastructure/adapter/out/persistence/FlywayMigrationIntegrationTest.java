@@ -1,19 +1,20 @@
 package co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.persistence;
 
+import co.edu.univalle.fleetops.mantenimiento.AbstractIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
-class FlywayMigrationIntegrationTest {
+class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private DataSource dataSource;
