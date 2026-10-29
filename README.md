@@ -1,194 +1,298 @@
-# FleetOps - Microservicio de Mantenimiento
+# FleetOps — Microservicio de Mantenimiento
 
+Gestión del ciclo de vida de órdenes de trabajo de mantenimiento preventivo y correctivo para la flota vehicular corporativa de FleetCorp, garantizando trazabilidad, disponibilidad operativa y resiliencia en un ecosistema distribuido.
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-En%20Desarrollo-orange.svg)]()
+[![Quality Gate](https://img.shields.io/badge/quality%20gate-passed-brightgreen.svg)]()
+[![Coverage Backend](https://img.shields.io/badge/coverage%20backend-80%25-brightgreen.svg)]()
 [![Java 21](https://img.shields.io/badge/Java-21%20LTS-orange.svg)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![Gradle](https://img.shields.io/badge/Gradle-9.8.2-blue.svg)](https://gradle.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-blue.svg)](https://supabase.com/)
 [![Flyway](https://img.shields.io/badge/Flyway-Migrations-red.svg)](https://flywaydb.org/)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-AMQP%200--9--1-orange.svg)](https://www.rabbitmq.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+## Descripción
 
-Microservicio encargado de gestionar el **ciclo de vida completo de las órdenes de trabajo de mantenimiento** (preventivo y correctivo) para la flota vehicular corporativa de **FleetCorp**, garantizando trazabilidad, disponibilidad operativa y resiliencia en un ecosistema distribuido.
+**FleetCorp / FleetOps** es una plataforma distribuida para la administración integral de flotas vehiculares comerciales y corporativas, compuesta por microservicios independientes que colaboran entre sí mediante APIs REST y eventos asíncronos:
 
-Proyecto desarrollado para el curso **Desarrollo de Software III (Semestre 2026-1 / 2026-2)** en la **Universidad del Valle - Escuela de Ingeniería de Sistemas y Computación (Célula 3)**.
+| Módulo | Repositorio / Descripción |
+|---|---|
+| Mantenimiento | *(este repositorio)* |
+| Vehículos | Microservicio de gestión de unidades de flota, estados operativos y telemetría |
+| Incidentes | Microservicio de reporte y gestión de colisiones, siniestros y fallas en ruta |
+| Asignaciones | Microservicio de programación de rutas, conductores y disponibilidad operativa |
+| Notificaciones | Despacho de alertas a técnicos, administradores y conductores |
 
----
+Este repositorio implementa el **microservicio de Mantenimiento**: encargado de administrar la trazabilidad completa de las órdenes de trabajo tanto preventivas como correctivas. Incorpora un motor de inspección multicriterio (tiempo y kilometraje) ejecutado automáticamente mediante un *Scheduler* diario con compensación, una bitácora técnica cronológica con soporte para registros de avance y novedades, asignación y consulta de técnicos de mantenimiento, y comunicación asíncrona desacoplada con el ecosistema a través del estándar **CloudEvents v1.0** sobre **RabbitMQ**, utilizando el patrón **Transactional Outbox** y tolerancia a fallos con **Resilience4j Circuit Breaker**.
 
-## 🏛️ Arquitectura de Software
-
-El microservicio implementa una **Arquitectura Hexagonal (Puertos y Adaptadores)** estricta, desacoplando completamente las reglas de negocio del framework Spring Boot, los clientes HTTP y la base de datos:
+## Arquitectura
 
 ```text
-src/main/java/co/edu/univalle/fleetops/mantenimiento/
-├── MantenimientoApplication.java           # Punto de entrada (@SpringBootApplication + @EnableScheduling)
-│
-├── domain/                                 # NÚCLEO: Dominio en Java 21 Puro (Sin dependencias de framework)
-│   ├── model/                              # Entidades del negocio y agregados
-│   │   ├── MaintenanceOrder.java           # Agregado raíz con ciclo de vida y transiciones
-│   │   ├── MaintenanceRule.java            # Reglas preventivas (GLOBAL, CATEGORY, VEHICLE)
-│   │   ├── MaintenanceLog.java             # Bitácora cronológica técnica
-│   │   ├── MaintenanceLogAttachment.java   # Metadatos de adjuntos
-│   │   ├── Technician.java                 # Modelo de técnicos
-│   │   ├── OutboxMessage.java              # Mensajes para Transactional Outbox Pattern
-│   │   ├── AccessAuditLog.java             # Registro de auditoría de accesos
-│   │   └── enums/                          # Catálogos oficiales de estados y tipos
-│   ├── exception/                          # Excepciones de negocio (400, 404, 409, 422)
-│   └── port/                               # Contratos del hexágono
-│       ├── in/                             # Puertos de Entrada (Casos de Uso del Backlog)
-│       │   ├── RegisterRuleUseCase.java               # HU-01: Parametrizar reglas preventivas
-│       │   ├── ExecutePreventiveInspectionUseCase.java# HU-02: Scheduler preventivo multicriterio
-│       │   ├── RegisterManualOrderUseCase.java        # HU-03: Crear orden manual extraordinaria
-│       │   ├── ProcessReportedIncidentUseCase.java    # HU-04: Consumidor de incidentes
-│       │   ├── QueryOrdersUseCase.java                # HU-05, HU-07: Listado filtrado y paginado
-│       │   ├── GetOrderDetailUseCase.java             # HU-06: Detalle con bitácora
-│       │   ├── UpdateOrderStatusUseCase.java          # HU-08: Transición de estado y finalización
-│       │   ├── RegisterProgressUseCase.java           # HU-09: Avances y revisiones técnicas
-│       │   ├── PublishPendingOutboxUseCase.java       # Relay de despacho en background
-│       │   └── ManageTechniciansUseCase.java          # Gestión de técnicos
-│       └── out/                            # Puertos de Salida (Persistencia e Integración)
-│           ├── OrderRepositoryPort.java
-│           ├── RuleRepositoryPort.java
-│           ├── ProgressRepositoryPort.java
-│           ├── TechnicianRepositoryPort.java
-│           ├── OutboxRepositoryPort.java
-│           ├── VehicleServiceClientPort.java
-│           └── EventPublisherPort.java
-│
-└── infrastructure/                         # PERIFERIA: Adaptadores y Frameworks
-    ├── adapter/
-    │   ├── in/                             # Adaptadores de Entrada
-    │   │   ├── web/                        # REST Controllers, DTOs y Manejador Global de Errores
-    │   │   ├── scheduler/                  # @Scheduled cron (02:00 AM) y Outbox Relay
-    │   │   └── messaging/                  # @RabbitListener para eventos entrantes
-    │   └── out/                            # Adaptadores de Salida
-    │       ├── persistence/                # JPA Entities, Repositorios Spring Data, Mappers
-    │       ├── client/                     # Cliente HTTP a MS Vehículos (Resilience4j Circuit Breaker)
-    │       └── messaging/                  # Publicador RabbitMQ (Topic Exchange)
-    └── config/                             # Beans de configuración (OpenAPI, RabbitMQ, WebMvc)
+[ Clientes / Administrador / Técnicos ]
+                 ↓
+       [ API Gateway FleetOps ] ←── Punto de entrada centralizado
+                 |                  Enrutamiento · Autenticación JWT · Rate Limiting
+                 ↓ (HTTP / REST)
+┌──────────────────────────────────────────────────────────────────────────┐
+│             Microservicio de Mantenimiento (Spring Boot 3.4)             │
+│                                                                          │
+│  [ Inbound Adapters ]                                                    │
+│   - REST Controllers (/maintenance, /technicians)                        │
+│   - AMQP Consumer (@RabbitListener: incidente.reportado)                 │
+│   - Scheduled Tasks (@Scheduled cron 02:00 AM)                           │
+│                              ↓                                           │
+│  [ Domain & Application Layer (Java 21 Puro) ]                           │
+│   - Casos de Uso (Inbound Ports)                                         │
+│   - Agregados de Dominio (MaintenanceOrder, Rules, Logs, Technicians)    │
+│   - Contratos de Persistencia e Integración (Outbound Ports)             │
+│                              ↓                                           │
+│  [ Outbound Adapters ]                                                   │
+│   - JPA Persistence (Hibernate + Repositorios Spring Data)               │
+│   - HTTP Client a MS Vehículos (Resilience4j Circuit Breaker)           │
+│   - Event Publisher (RabbitMQ Outbox Relay con SKIP LOCKED)              │
+└───────────────────────┬──────────────────────────┬───────────────────────┘
+                        ↓                          ↓
+         [ Base de Datos (PostgreSQL) ]   [ Broker (RabbitMQ) ]
+          (Supabase Pooler o Local)        (Topic Exchanges CloudEvents)
 ```
 
+### Decisiones arquitectónicas
+
+| Capa | Patrón | Tecnología |
+|---|---|---|
+| Dominio | Arquitectura Hexagonal / DDD | Java 21 puro sin dependencias de Spring Boot |
+| Casos de Uso | Ports and Adapters (Inbound / Outbound) | Interfaces en `port/in` y `port/out` |
+| Entrada Web | REST Controllers + DTOs + Global Exception Handler | Spring Web MVC + Springdoc OpenAPI 2.8 |
+| Entrada Asíncrona | Message Consumer (Topic Exchange) | Spring AMQP (`@RabbitListener`) + CloudEvents v1.0 |
+| Programación | Tareas programadas con compensación | Spring `@Scheduled` (`0 0 2 * * *`) |
+| Persistencia | Repository Pattern + Transactional Outbox | Spring Data JPA + Hibernate 6 + Flyway |
+| Integración HTTP | Circuit Breaker con ventana móvil y degradación | Resilience4j + RestTemplate |
+| Publicación de Eventos | Outbox Relay con `FOR UPDATE SKIP LOCKED` | Spring AMQP (`RabbitTemplate`) |
+
+## Enlaces a Documentación
+
+Puedes consultar la documentación técnica extendida y los artefactos de diseño en el repositorio:
+
+- **Decisiones Arquitectónicas y Observaciones:** [`solution/decisiones_y_observaciones.md`](solution/decisiones_y_observaciones.md)
+- **Guía de Contribución y Flujo de Trabajo:** [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- **Documento de Arquitectura de Software (DAS):** `solution/MANTENIMIENTO_DAS_V_0_3.docx`
+- **Product Backlog y Matriz de Historias de Usuario:** `solution/Mantenimiento_ProductBacklogV2.0.xlsx`
+- **Matriz de Endpoints y Eventos:** `solution/FleetOps_Endpoints_y_Eventos_Modulo_Mantenimiento.xlsx`
+- **Definición de Contratos de Eventos:** `solution/Definicion de eventos.docx`
+
+## Stack tecnológico
+
+### Backend
+| Tecnología | Versión | Uso |
+|---|---|---|
+| Java | 21 LTS | Lenguaje principal (núcleo de dominio puro y adaptadores) |
+| Spring Boot | 3.4.3 | Framework empresarial para inyección de dependencias y configuración |
+| Spring Data JPA | 3.4.x | Mapeo objeto-relacional y persistencia |
+| Flyway | 10.x | Control de versiones y migraciones automatizadas de esquemas de BD |
+| RabbitMQ (AMQP) | 3.12+ | Broker de mensajería para eventos CloudEvents v1.0 |
+| Resilience4j | 2.x | Tolerancia a fallos y Circuit Breaker para llamadas a MS Vehículos |
+| Springdoc OpenAPI | 2.8.5 | Generación de contratos interactivos Swagger UI / OpenAPI 3.0 |
+
+### Integración y Servicios Satélite
+| Servicio / Módulo | Protocolo | Uso |
+|---|---|---|
+| MS Vehículos | HTTP / REST | Consulta de kilometraje, categoría y datos de vehículos |
+| MS Incidentes | AMQP / RabbitMQ | Evento entrante `incidente.reportado` para órdenes correctivas |
+| MS Vehículos | AMQP / RabbitMQ | Evento saliente `mantenimiento.finalizado` para reactivar flota |
+
+### Infraestructura y datos
+| Tecnología | Versión | Uso |
+|---|---|---|
+| PostgreSQL | 15+ / 16 | Base de datos relacional (Supabase Session Pooler o PostgreSQL local) |
+| RabbitMQ | 3.12+ | Broker de mensajería asíncrona |
+| Docker & Docker Compose | v2+ | Contenerización y orquestación local y de producción |
+| AWS EC2 | Amazon Linux 2023 | Servidor de despliegue continuo en la nube |
+| Docker Hub | — | Registro centralizado de imágenes de producción |
+| GitHub Actions | — | Pipelines automatizados de CI y CD |
+| SonarCloud & JaCoCo | — | Quality Gate, análisis estático y cobertura de pruebas ($\ge 80\%$) |
+
+## Requisitos previos
+
+Antes de ejecutar el microservicio, asegúrate de contar con:
+
+- **Java Development Kit (JDK)**: OpenJDK 21 LTS (Eclipse Temurin recomendado).
+- **Gradle**: 9.x (opcional, ya que se incluye el wrapper `./gradlew` y `.\gradlew.bat`).
+- **Docker & Docker Compose**: v2.27+ para ejecución local en contenedores.
+- **Base de datos PostgreSQL**: Instancia local accesible o proyecto en la nube (ej. Supabase).
+- **RabbitMQ**: Broker AMQP 0-9-1 activo (puerto 5672 para datos y 15672 para consola de administración).
+
 ---
 
-## 📋 Resumen de Historias de Usuario
+## Inicio rápido (Quick Start)
 
-| ID | Rol | Funcionalidad | Endpoint / Trigger |
-| :--- | :--- | :--- | :--- |
-| **HU-01** | Administrador de Flota | Parametrizar reglas preventivas jerárquicas | `POST /maintenance/rules` |
-| **HU-02** | Sistema | Scheduler diario multicriterio (02:00 AM) con compensación | Cron `0 0 2 * * *` |
-| **HU-03** | Administrador de Flota | Registrar orden manual extraordinaria | `POST /maintenance` |
-| **HU-04** | Sistema | Consumo asíncrono de reporte de colisión/falla | `incidente.reportado` (RabbitMQ) |
-| **HU-05** | Administrador de Flota | Listar órdenes con filtros dinámicos y bloque resumen | `GET /maintenance` |
-| **HU-06** | Administrador de Flota | Detalle completo de orden y su bitácora cronológica | `GET /maintenance/{id}` |
-| **HU-07** | Técnico de Mantenimiento | Listar órdenes asignadas al técnico autenticado | `GET /maintenance/my_orders` |
-| **HU-08** | Técnico de Mantenimiento | Avanzar estado (`IN_PROGRESS` $\to$ `COMPLETED`) y liberar vehículo | `PUT /maintenance/{id}/status` |
-| **HU-09** | Técnico de Mantenimiento | Registrar avances, revisiones o novedades en bitácora | `POST /maintenance/{id}/logs` |
-
----
-
-## 🛠️ Tecnologías y Requisitos
-
-* **Java:** OpenJDK 21 LTS (Eclipse Temurin recomendado).
-* **Framework:** Spring Boot 3.4.3.
-* **Gestor de Construcción:** Gradle 9.x.
-* **Base de Datos:** PostgreSQL 15+ (Gestionado vía Supabase en Session Pooler).
-* **Migraciones de Base de Datos:** Flyway 10.x.
-* **Broker de Mensajería:** RabbitMQ 3.12+ (AMQP 0-9-1).
-* **Resiliencia:** Resilience4j (Circuit Breaker con ventanas móviles).
-* **Observabilidad:** Spring Boot Actuator, Micrometer y Prometheus.
-* **Estilo y Calidad:** Checkstyle (Google Java Style adaptado) y JaCoCo (Cobertura $\ge$ 80%).
-
----
-
-## 🚀 Puesta en Marcha Local
-
-### 1. Clonar el repositorio y configurar variables de entorno
+### 1. Clonar el repositorio
 ```bash
 git clone https://github.com/FleetOpsProyect/grupo_03_mantenimiento.git
 cd grupo_03_mantenimiento
 ```
 
-Copia la plantilla de variables de entorno y llena tus credenciales:
+### 2. Configurar la base de datos
+
+Crea una base de datos PostgreSQL dedicada para el microservicio (por ejemplo `fleetops_maintenance`) en tu servidor local o en tu proveedor en la nube (como Supabase).
+
+> Las migraciones de estructura de tablas y datos iniciales se ejecutan automáticamente al arrancar la aplicación a través de **Flyway** (`src/main/resources/db/migration`).
+
+### 3. Configurar variables de entorno
+
+Copia la plantilla base de variables de entorno:
 ```bash
 cp .env.example .env
 ```
 
-Contenido base de `.env`:
+Edita el archivo `.env` y configura tus valores de conexión locales o de nube:
+
 ```properties
 PORT=8083
 
-# Base de datos PostgreSQL (Supabase Session Pooler o local)
-SPRING_DATASOURCE_URL=jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require
-SPRING_DATASOURCE_USERNAME=postgres.tu_proyecto
-SPRING_DATASOURCE_PASSWORD=tu_contraseña
+# Base de datos PostgreSQL (Supabase Session Pooler o PostgreSQL local)
+SPRING_DATASOURCE_URL=jdbc:postgresql://<host-db>:<puerto>/<nombre-db>?sslmode=require
+SPRING_DATASOURCE_USERNAME=<tu-usuario-db>
+SPRING_DATASOURCE_PASSWORD=<tu-contraseña-db>
 
-# RabbitMQ
-RABBITMQ_HOST=localhost
+# Broker RabbitMQ
+RABBITMQ_HOST=<host-rabbitmq>
 RABBITMQ_PORT=5672
-RABBITMQ_USERNAME=guest
-RABBITMQ_PASSWORD=guest
+RABBITMQ_USERNAME=<tu-usuario-rabbitmq>
+RABBITMQ_PASSWORD=<tu-contraseña-rabbitmq>
+RABBITMQ_VIRTUAL_HOST=/
 
-# URL de Microservicio de Vehículos
-VEHICLES_SERVICE_URL=http://localhost:8081
+# Integración con Microservicio de Vehículos
+VEHICLES_SERVICE_URL=http://<host-vehiculos>:8081
 ```
 
-> [!NOTE]
-> El archivo [.env](.env) está protegido por [.gitignore](.gitignore) y nunca debe ser comiteado en Git.
+> [!WARNING]
+> El archivo `.env` contiene credenciales privadas, se encuentra protegido por `.gitignore` y **nunca** debe comitearse al repositorio.
 
----
+### 4. Ejecutar el microservicio
 
-## 💻 Comandos Principales de Desarrollo (Gradle)
+#### Opción A: Ejecución local con Gradle
+```powershell
+# En Windows PowerShell:
+.\gradlew.bat bootRun
 
-En Windows PowerShell usa `.\gradlew.bat` (en Linux/macOS usa `./gradlew`):
+# En Linux / macOS / Bash:
+./gradlew bootRun
+```
+
+#### Opción B: Ejecución contenerizada con Docker Compose
+```bash
+docker compose -f docker-compose.local.yml up --build -d
+```
+
+### 5. Verificar que todo está corriendo
+
+Una vez iniciado el microservicio, verifica los endpoints principales:
+
+| Endpoint | Descripción | URL |
+|---|---|---|
+| **API Base** | Recurso principal de órdenes | http://localhost:8083/maintenance |
+| **Health Check** | Estado del servicio y sondas Actuator | http://localhost:8083/actuator/health |
+| **Swagger UI** | Documentación interactiva OpenAPI | http://localhost:8083/swagger-ui/index.html |
+| **OpenAPI Spec** | Especificación JSON de la API | http://localhost:8083/v3/api-docs |
+
+## Comandos útiles
+
+### Backend (Gradle)
+
+Para Windows PowerShell usa `.\gradlew.bat` (en Linux/macOS usa `./gradlew`):
 
 | Acción | Comando |
-| :--- | :--- |
-| **Compilar código** | `.\gradlew.bat compileJava` |
+|---|---|
+| **Compilar código fuente** | `.\gradlew.bat compileJava` |
+| **Compilar código y pruebas** | `.\gradlew.bat testClasses` |
 | **Ejecutar pruebas unitarias e integración** | `.\gradlew.bat test` |
-| **Generar reporte de cobertura JaCoCo** | `.\gradlew.bat jacocoTestReport` |
-| **Validar cobertura mínima (80%)** | `.\gradlew.bat jacocoTestCoverageVerification` |
+| **Generar reporte HTML JaCoCo** | `.\gradlew.bat jacocoTestReport` |
+| **Validar cobertura mínima ($\ge 80\%$)** | `.\gradlew.bat jacocoTestCoverageVerification` |
 | **Análisis de estilo (Checkstyle)** | `.\gradlew.bat checkstyleMain checkstyleTest` |
 | **Verificación integral (Build + Test + Quality)** | `.\gradlew.bat check` |
 | **Iniciar aplicación localmente** | `.\gradlew.bat bootRun` |
 | **Generar archivo JAR ejecutable** | `.\gradlew.bat bootJar -x test` |
+| **Limpiar artefactos generados** | `.\gradlew.bat clean` |
 
----
+## Estructura del repositorio
 
-## 📡 Matriz de Eventos (RabbitMQ)
-
-Todos los mensajes se serializan en formato JSON bajo el estándar abierto **CloudEvents v1.0**:
-
-| Evento | Sentido | Exchange | Routing Key | Descripción |
-| :--- | :---: | :--- | :--- | :--- |
-| `IncidenteReportadoEvent` | **Inbound** | `fleetops.incidentes.exchange` | `incidente.reportado` | Consumido desde MS Incidentes para generar automáticamente una orden correctiva. |
-| `MantenimientoPreventivoRequeridoEvent` | **Outbound** | `fleetops.mantenimiento.exchange` | `mantenimiento.preventivo.requerido` | Publicado tras la creación de orden preventiva para notificar al Administrador y Técnico. |
-| `MantenimientoFinalizadoEvent` | **Outbound** | `fleetops.mantenimiento.exchange` | `mantenimiento.finalizado` | Publicado vía Outbox al pasar a `COMPLETED` para que MS Vehículos reactive la unidad a `ACTIVO`. |
-
----
-
-## 🛡️ Flujo de Integración Continua (CI) y GitFlow
-
-El repositorio cuenta con un pipeline automatizado en **GitHub Actions** (`.github/workflows/ci.yml`) que valida cada Pull Request hacia `develop`:
-
-```mermaid
-flowchart LR
-    A[Pull Request] --> B[Checkstyle Linter]
-    B --> C[Postgres Service Container]
-    C --> D[Flyway Migrations]
-    D --> E[Unit & Integration Tests]
-    E --> F[JaCoCo Coverage >= 80%]
-    F --> G[SonarCloud Scan]
-    G --> H[Artifact JAR Ready]
+```text
+grupo_03_mantenimiento/
+├── .github/
+│   └── workflows/                # Pipelines CI/CD (ci.yml, cd.yml, qodo-review.yml)
+├── gradle/wrapper/               # Wrapper portable de Gradle
+├── solution/                     # Documentación de diseño, DAS, backlog y matrices
+│   ├── decisiones_y_observaciones.md
+│   ├── MANTENIMIENTO_DAS_V_0_3.docx
+│   └── Mantenimiento_ProductBacklogV2.0.xlsx
+├── src/
+│   ├── main/
+│   │   ├── java/co/edu/univalle/fleetops/mantenimiento/
+│   │   │   ├── domain/           # Núcleo: entidades, excepciones y puertos (Hexágono)
+│   │   │   └── infrastructure/   # Adaptadores web, scheduler, messaging y persistencia
+│   │   └── resources/
+│   │       ├── db/migration/     # Scripts Flyway (V1__init.sql, V2__schema_fixes.sql)
+│   │       └── application.yaml  # Configuración principal Spring Boot
+│   └── test/                     # Pruebas unitarias, integración y arquitectura
+├── .dockerignore                 # Exclusiones de contexto Docker
+├── .env.example                  # Plantilla genérica y segura de variables de entorno
+├── .gitignore                    # Exclusiones de control de versiones Git
+├── build.gradle                  # Configuración de dependencias, JaCoCo, Sonar y Checkstyle
+├── checkstyle.xml                # Reglas de estilo de código Java
+├── CONTRIBUTING.md               # Guía de contribución y flujo de trabajo en equipo
+├── docker-compose.local.yml      # Despliegue en contenedor para desarrollo local
+├── docker-compose.prod.yml       # Orquestación de producción para AWS EC2
+├── Dockerfile                    # Construcción multi-stage de imagen Docker
+├── LICENSE                       # Licencia MIT del proyecto
+└── README.md                     # Documentación principal
 ```
 
-### Reglas de Contribución:
-1. **Rama base de desarrollo:** Todos los Pull Requests deben apuntar a la rama `develop`.
-2. **Branch Protection:** No se permite push directo a `main` ni a `develop`.
-3. **Quality Gate:** Todo PR debe pasar obligatoriamente el pipeline de CI (Checkstyle + Tests + Cobertura $\ge$ 80%) y contar con la aprobación de al menos un revisor.
+## Estado del proyecto
 
-## 🚢 Despliegue continuo con Docker y AWS
+| Sprint | Estado | Descripción |
+|---|---|---|
+| **S0** |  Completado | Arquetipo base, arquitectura hexagonal, CI/CD con SonarCloud, DevOps inicial y DAS |
+| **S1** |  Completado | HU-01 (Reglas preventivas), HU-02 (Scheduler diario multicriterio), HU-03 (Órdenes manuales) y HU-04 (Consumo de incidentes) |
+| **S2** |  Planificado | HU-05 (Consulta y filtros dinámicos), HU-06 (Detalle y bitácora), HU-07 (Órdenes asignadas al técnico) |
+| **S3** |  Planificado | HU-08 (Finalización de orden y reactivación vía Outbox), HU-09 (Bitácora de avances técnicos) |
+| **S4** |  Planificado | Pruebas de estrés y carga, observabilidad integral y consolidación de release para producción |
 
-El workflow `.github/workflows/cd.yml` se ejecuta automáticamente con cada push sobre `main`. Construye la imagen con el `Dockerfile`, publica `ckancord33/fleetops-mantenimiento:latest` y una etiqueta con el SHA del commit en Docker Hub, copia `docker-compose.prod.yml` al servidor AWS y actualiza el servicio con `docker compose pull` y `docker compose up -d --no-build`. El CI se ejecuta en `develop`; este CD no depende de ese workflow.
+## Flujo de trabajo
 
-El servidor debe tener Docker Engine y Docker Compose v2 instalados. Para el usuario `ec2-user`, crea `/home/ec2-user/fleetops-mantenimiento/.env` directamente en el servidor; el workflow nunca sube ese archivo porque contiene credenciales. Debe incluir al menos `PORT`, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` y `VEHICLES_SERVICE_URL`.
+Consulta [`CONTRIBUTING.md`](CONTRIBUTING.md) para el detalle normativo completo. Resumen operativo:
 
-Configura en GitHub Actions los secretos `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `AWS_HOST`, `AWS_USER` y `AWS_SSH_PRIVATE_KEY`. `AWS_SSH_PORT` es opcional y por defecto usa el puerto `22`. El token de Docker Hub debe tener permiso de lectura y escritura sobre el repositorio `ckancord33/fleetops-mantenimiento`.
+1. **Trabajar en rama personal:** cada integrante dispone de su propia rama (`DAR`, `jsfv`, `jss`, `nco`).
+2. **Validar localmente (`Gate 1`):** compilar, ejecutar Checkstyle, pruebas unitarias y verificar cobertura JaCoCo $\ge 80\%$.
+3. **Push y Pull Request:** publicar cambios y abrir PR hacia la rama `develop`.
+4. **Verificación automatizada (`Gate 2`):** el pipeline de GitHub Actions (`ci.yml`) ejecuta pruebas, valida cobertura, corre SonarCloud y el agente Qodo AI (`qodo-review.yml`) audita el PR.
+5. **Merge a `develop`:** resolver observaciones y realizar *Squash and Merge*.
+6. **Cierre de Sprint a `main`:** PR de `develop` a `main` con tag semántico (`v0.X.0`), lo cual activa el CD (`cd.yml`) para publicar la imagen en Docker Hub y desplegar en AWS EC2.
+
+## Secrets de GitHub Actions
+
+Para la correcta ejecución de los flujos automatizados de CI y CD, se deben configurar los siguientes secretos en el repositorio:
+
+| Secret | Flujo | Uso |
+|---|---|---|
+| `SONAR_TOKEN` | CI | Token de autenticación para el análisis de calidad con SonarCloud |
+| `GEMINI_API_KEY` | CI | Llave de API para el agente de revisión de PRs Qodo AI |
+| `DOCKERHUB_USERNAME` | CD | Nombre de usuario en Docker Hub para construir y publicar la imagen |
+| `DOCKERHUB_TOKEN` | CD | Token de Docker Hub con permisos de escritura y lectura |
+| `AWS_HOST` | CD | Host o dirección IP pública del servidor AWS EC2 de producción |
+| `AWS_USER` | CD | Usuario SSH del servidor AWS (`ec2-user`) |
+| `AWS_SSH_PRIVATE_KEY` | CD | Llave privada SSH (.pem) para autenticación sin contraseña |
+| `AWS_SSH_PORT` | CD | *(Opcional)* Puerto SSH del servidor AWS (por defecto: `22`) |
+
+## Créditos
+
+Desarrollado para el curso **Desarrollo de Software III (Semestre 2026-1 / 2026-2)** — **Universidad del Valle, Escuela de Ingeniería de Sistemas y Computación (Célula 3)**:
+
+- Daniel Andrade (`DAR`)
+- Jhoan Fernández (`jsfv`)
+- Juan Sebastián Sierra (`jss`)
+- Nicolás Córdoba (`nco`)
+- Juan AMpudia  (`maj`)
+## Licencia
+
+MIT — ver [`LICENSE`](LICENSE).
