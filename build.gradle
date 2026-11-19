@@ -26,6 +26,10 @@ configurations {
 	}
 }
 
+// Spring Boot 3.4.3 trae Testcontainers 1.20.5, que no se puede conectar a Docker Engine 29+
+// (version usada por los runners de GitHub Actions: exige API >= 1.44). 1.21.4 corrige la negociacion.
+ext['testcontainers.version'] = '1.21.4'
+
 dependencies {
 	// Spring Boot Core & Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'

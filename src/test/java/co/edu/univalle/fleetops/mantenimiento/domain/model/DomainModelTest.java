@@ -182,6 +182,37 @@ class DomainModelTest {
     }
 
     @Test
+    @DisplayName("Debe rechazar campos que no corresponden al alcance de la regla")
+    void shouldRejectFieldsNotAllowedForScope() {
+        MaintenanceRule globalWithCategory = MaintenanceRule.builder()
+                .scope(RuleScope.GLOBAL)
+                .category(VehicleCategory.CAMIONETA)
+                .mileageIntervalKm(10000)
+                .timeIntervalDays(180)
+                .build();
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, globalWithCategory::validate);
+        assertEquals("FIELD_NOT_ALLOWED_FOR_SCOPE", ex.getErrorCode());
+
+        MaintenanceRule categoryWithVehicle = MaintenanceRule.builder()
+                .scope(RuleScope.CATEGORY)
+                .category(VehicleCategory.CAMIONETA)
+                .vehicleId(UUID.randomUUID())
+                .mileageIntervalKm(10000)
+                .timeIntervalDays(180)
+                .build();
+        assertThrows(BusinessRuleException.class, categoryWithVehicle::validate);
+
+        MaintenanceRule vehicleWithCategory = MaintenanceRule.builder()
+                .scope(RuleScope.VEHICLE)
+                .vehicleId(UUID.randomUUID())
+                .category(VehicleCategory.AUTOMOVIL)
+                .mileageIntervalKm(10000)
+                .timeIntervalDays(180)
+                .build();
+        assertThrows(BusinessRuleException.class, vehicleWithCategory::validate);
+    }
+
+    @Test
     @DisplayName("Debe verificar getters, setters y constructores de modelos auxiliares")
     void shouldCoverAuxiliaryDomainModels() {
         UUID id = UUID.randomUUID();
