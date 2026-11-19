@@ -39,21 +39,25 @@ spring:
     locations: classpath:db/migration
 
   # ====================================================================
-  # Broker de Mensajería (RabbitMQ)
+  # Mensajería Asíncrona (AWS SNS / SQS)
+  # Las credenciales se resuelven automáticamente via DefaultCredentialsProvider
+  # (variables AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY o IAM Role en EC2).
   # ====================================================================
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
-    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
-    listener:
-      simple:
-        retry:
-          enabled: true
-          initial-interval: 1000ms
-          max-attempts: 3
-          multiplier: 2.0
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:us-east-1}
+      sns:
+        enabled: ${AWS_SNS_ENABLED:true}
+      sqs:
+        enabled: ${AWS_SQS_ENABLED:true}
+
+aws:
+  messaging:
+    sns:
+      topic-arn: ${AWS_SNS_TOPIC_ARN:}
+    sqs:
+      incident-queue: ${AWS_SQS_INCIDENT_QUEUE:fleetops-maintenance-incidents}
 
 # ====================================================================
 # Integración con Otros Microservicios (Rutas / URLs)
