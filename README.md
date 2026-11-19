@@ -11,7 +11,7 @@ Gestión del ciclo de vida de órdenes de trabajo de mantenimiento preventivo y 
 [![Gradle](https://img.shields.io/badge/Gradle-9.8.2-blue.svg)](https://gradle.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-blue.svg)](https://supabase.com/)
 [![Flyway](https://img.shields.io/badge/Flyway-Migrations-red.svg)](https://flywaydb.org/)
-[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-AMQP%200--9--1-orange.svg)](https://www.rabbitmq.com/)
+[![AWS SNS/SQS](https://img.shields.io/badge/AWS-SNS%20%2F%20SQS-orange.svg)](https://aws.amazon.com/sqs/)
 ## Descripción
 
 **FleetCorp / FleetOps** es una plataforma distribuida para la administración integral de flotas vehiculares comerciales y corporativas, compuesta por microservicios independientes que colaboran entre sí mediante APIs REST y eventos asíncronos:
@@ -24,7 +24,7 @@ Gestión del ciclo de vida de órdenes de trabajo de mantenimiento preventivo y 
 | Asignaciones | Microservicio de programación de rutas, conductores y disponibilidad operativa |
 | Notificaciones | Despacho de alertas a técnicos, administradores y conductores |
 
-Este repositorio implementa el **microservicio de Mantenimiento**: encargado de administrar la trazabilidad completa de las órdenes de trabajo tanto preventivas como correctivas. Incorpora un motor de inspección multicriterio (tiempo y kilometraje) ejecutado automáticamente mediante un *Scheduler* diario con compensación, una bitácora técnica cronológica con soporte para registros de avance y novedades, asignación y consulta de técnicos de mantenimiento, y comunicación asíncrona desacoplada con el ecosistema a través del estándar **CloudEvents v1.0** sobre **RabbitMQ**, utilizando el patrón **Transactional Outbox** y tolerancia a fallos con **Resilience4j Circuit Breaker**.
+Este repositorio implementa el **microservicio de Mantenimiento**: encargado de administrar la trazabilidad completa de las órdenes de trabajo tanto preventivas como correctivas. Incorpora un motor de inspección multicriterio (tiempo y kilometraje) ejecutado automáticamente mediante un *Scheduler* diario con compensación, una bitácora técnica cronológica con soporte para registros de avance y novedades, asignación y consulta de técnicos de mantenimiento, y comunicación asíncrona desacoplada con el ecosistema a través del estándar **CloudEvents v1.0** sobre **AWS SNS / SQS**, utilizando el patrón **Transactional Outbox** y tolerancia a fallos con **Resilience4j Circuit Breaker**.
 
 ## Arquitectura
 
@@ -39,7 +39,7 @@ Este repositorio implementa el **microservicio de Mantenimiento**: encargado de 
 │                                                                          │
 │  [ Inbound Adapters ]                                                    │
 │   - REST Controllers (/maintenance, /technicians)                        │
-│   - AMQP Consumer (@RabbitListener: incidente.reportado)                 │
+│   - SQS Consumer (@SqsListener: incidente.reportado)                        │
 │   - Scheduled Tasks (@Scheduled cron 02:00 AM)                           │
 │                              ↓                                           │
 │  [ Domain & Application Layer (Java 21 Puro) ]                           │
@@ -50,11 +50,11 @@ Este repositorio implementa el **microservicio de Mantenimiento**: encargado de 
 │  [ Outbound Adapters ]                                                   │
 │   - JPA Persistence (Hibernate + Repositorios Spring Data)               │
 │   - HTTP Client a MS Vehículos (Resilience4j Circuit Breaker)           │
-│   - Event Publisher (RabbitMQ Outbox Relay con SKIP LOCKED)              │
+│   - Event Publisher (AWS SNS Outbox Relay con SKIP LOCKED)               │
 └───────────────────────┬──────────────────────────┬───────────────────────┘
                         ↓                          ↓
-         [ Base de Datos (PostgreSQL) ]   [ Broker (RabbitMQ) ]
-          (Supabase Pooler o Local)        (Topic Exchanges CloudEvents)
+         [ Base de Datos (PostgreSQL) ]   [ AWS SNS / SQS ]
+          (Supabase Pooler o Local)        (Tópicos SNS y Colas SQS)
 ```
 
 ### Decisiones arquitectónicas
@@ -64,11 +64,11 @@ Este repositorio implementa el **microservicio de Mantenimiento**: encargado de 
 | Dominio | Arquitectura Hexagonal / DDD | Java 21 puro sin dependencias de Spring Boot |
 | Casos de Uso | Ports and Adapters (Inbound / Outbound) | Interfaces en `port/in` y `port/out` |
 | Entrada Web | REST Controllers + DTOs + Global Exception Handler | Spring Web MVC + Springdoc OpenAPI 2.8 |
-| Entrada Asíncrona | Message Consumer (Topic Exchange) | Spring AMQP (`@RabbitListener`) + CloudEvents v1.0 |
+| Entrada Asíncrona | Message Consumer (SQS Queue) | Spring Cloud AWS (`@SqsListener`) + CloudEvents v1.0 |
 | Programación | Tareas programadas con compensación | Spring `@Scheduled` (`0 0 2 * * *`) |
 | Persistencia | Repository Pattern + Transactional Outbox | Spring Data JPA + Hibernate 6 + Flyway |
-| Integración HTTP | Circuit Breaker con ventana móvil y degradación | Resilience4j + RestTemplate |
-| Publicación de Eventos | Outbox Relay con `FOR UPDATE SKIP LOCKED` | Spring AMQP (`RabbitTemplate`) |
+| Integración HTTP | Circuit Breaker con ventana móvil y degradación | Resilience4j + RestClient |
+| Publicación de Eventos | Outbox Relay con `FOR UPDATE SKIP LOCKED` | Spring Cloud AWS (`SnsTemplate`) |
 
 ## Enlaces a Documentación
 
@@ -90,7 +90,7 @@ Puedes consultar la documentación técnica extendida y los artefactos de diseñ
 | Spring Boot | 3.4.3 | Framework empresarial para inyección de dependencias y configuración |
 | Spring Data JPA | 3.4.x | Mapeo objeto-relacional y persistencia |
 | Flyway | 10.x | Control de versiones y migraciones automatizadas de esquemas de BD |
-| RabbitMQ (AMQP) | 3.12+ | Broker de mensajería para eventos CloudEvents v1.0 |
+| AWS SNS / SQS | 3.3.0 (Spring Cloud AWS) | Mensajería asíncrona para eventos CloudEvents v1.0 |
 | Resilience4j | 2.x | Tolerancia a fallos y Circuit Breaker para llamadas a MS Vehículos |
 | Springdoc OpenAPI | 2.8.5 | Generación de contratos interactivos Swagger UI / OpenAPI 3.0 |
 
@@ -98,14 +98,14 @@ Puedes consultar la documentación técnica extendida y los artefactos de diseñ
 | Servicio / Módulo | Protocolo | Uso |
 |---|---|---|
 | MS Vehículos | HTTP / REST | Consulta de kilometraje, categoría y datos de vehículos |
-| MS Incidentes | AMQP / RabbitMQ | Evento entrante `incidente.reportado` para órdenes correctivas |
-| MS Vehículos | AMQP / RabbitMQ | Evento saliente `mantenimiento.finalizado` para reactivar flota |
+| MS Incidentes | AWS SQS / SNS | Evento entrante `incidente.reportado` para órdenes correctivas |
+| MS Vehículos | AWS SNS / SQS | Evento saliente `mantenimiento.finalizado` para reactivar flota |
 
 ### Infraestructura y datos
 | Tecnología | Versión | Uso |
 |---|---|---|
 | PostgreSQL | 15+ / 16 | Base de datos relacional (Supabase Session Pooler o PostgreSQL local) |
-| RabbitMQ | 3.12+ | Broker de mensajería asíncrona |
+| AWS SNS / SQS | — | Tópicos y colas administradas para mensajería asíncrona |
 | Docker & Docker Compose | v2+ | Contenerización y orquestación local y de producción |
 | AWS EC2 | Amazon Linux 2023 | Servidor de despliegue continuo en la nube |
 | Docker Hub | — | Registro centralizado de imágenes de producción |
@@ -120,7 +120,7 @@ Antes de ejecutar el microservicio, asegúrate de contar con:
 - **Gradle**: 9.x (opcional, ya que se incluye el wrapper `./gradlew` y `.\gradlew.bat`).
 - **Docker & Docker Compose**: v2.27+ para ejecución local en contenedores.
 - **Base de datos PostgreSQL**: Instancia local accesible o proyecto en la nube (ej. Supabase).
-- **RabbitMQ**: Broker AMQP 0-9-1 activo (puerto 5672 para datos y 15672 para consola de administración).
+- **Cuenta AWS (SNS / SQS)**: Tópico SNS y cola SQS configurados (o LocalStack para pruebas locales).
 
 ---
 
@@ -155,12 +155,12 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://<host-db>:<puerto>/<nombre-db>?sslmode=r
 SPRING_DATASOURCE_USERNAME=<tu-usuario-db>
 SPRING_DATASOURCE_PASSWORD=<tu-contraseña-db>
 
-# Broker RabbitMQ
-RABBITMQ_HOST=<host-rabbitmq>
-RABBITMQ_PORT=5672
-RABBITMQ_USERNAME=<tu-usuario-rabbitmq>
-RABBITMQ_PASSWORD=<tu-contraseña-rabbitmq>
-RABBITMQ_VIRTUAL_HOST=/
+# Mensajería Asíncrona (AWS SNS / SQS)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=<tu-access-key-id>
+AWS_SECRET_ACCESS_KEY=<tu-secret-access-key>
+AWS_SNS_TOPIC_ARN=arn:aws:sns:us-east-1:<account-id>:fleetops-maintenance-events
+AWS_SQS_INCIDENT_QUEUE=fleetops-maintenance-incidents
 
 # Integración con Microservicio de Vehículos
 VEHICLES_SERVICE_URL=http://<host-vehiculos>:8081
