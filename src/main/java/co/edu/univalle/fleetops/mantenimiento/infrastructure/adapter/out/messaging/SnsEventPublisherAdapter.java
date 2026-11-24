@@ -5,6 +5,7 @@ import io.awspring.cloud.sns.core.SnsTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
  * Outbound adapter that publishes domain events to AWS SNS.
  */
 @Component
+@ConditionalOnBean(SnsTemplate.class)
 @ConditionalOnProperty(name = "spring.cloud.aws.sns.enabled", havingValue = "true", matchIfMissing = true)
 public class SnsEventPublisherAdapter implements EventPublisherPort {
 
