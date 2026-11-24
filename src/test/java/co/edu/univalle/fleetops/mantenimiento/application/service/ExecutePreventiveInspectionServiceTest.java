@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +46,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ExecutePreventiveInspectionServiceTest {
+
+    private static final LocalDateTime FIXED_NOW = LocalDateTime.of(2026, Month.NOVEMBER, 24, 2, 0);
 
     @Mock
     private VehicleServiceClientPort vehicleClient;
@@ -86,7 +89,7 @@ class ExecutePreventiveInspectionServiceTest {
                 .mileageIntervalKm(kmThreshold)
                 .timeIntervalDays(daysThreshold)
                 .routineDescription("Rutina general preventiva")
-                .createdAt(LocalDateTime.now().minusDays(10))
+                .createdAt(FIXED_NOW.minusDays(10))
                 .build();
     }
 
@@ -164,7 +167,7 @@ class ExecutePreventiveInspectionServiceTest {
         MaintenanceRule rule = createRule(10000, 180);
         MaintenanceOrder previousOrder = MaintenanceOrder.builder()
                 .currentMileage(5000)
-                .completedAt(LocalDateTime.now().minusDays(30))
+                .completedAt(FIXED_NOW.minusDays(30))
                 .build();
 
         when(vehicleClient.getActiveVehicles()).thenReturn(List.of(vehicle));
@@ -188,7 +191,11 @@ class ExecutePreventiveInspectionServiceTest {
         assertEquals(rule.getRoutineDescription(), saved.getDescription());
 
         verify(vehicleClient).updateVehicleStatus(eq(vehicle.id()), any(UUID.class), eq("IN_MAINTENANCE"));
-        verify(eventPublisher).publish(eq(null), eq(PreventiveMaintenanceRequiredEvent.SUBJECT), any(PreventiveMaintenanceRequiredEvent.class));
+        verify(eventPublisher).publish(
+                eq(null),
+                eq(PreventiveMaintenanceRequiredEvent.SUBJECT),
+                any(PreventiveMaintenanceRequiredEvent.class)
+        );
         verifyNoInteractions(outboxRepository);
         assertEquals(1.0, meterRegistry.counter("scheduler_mantenimientos_generados_total").count());
     }
@@ -200,7 +207,7 @@ class ExecutePreventiveInspectionServiceTest {
         MaintenanceRule rule = createRule(10000, 60);
         MaintenanceOrder previousOrder = MaintenanceOrder.builder()
                 .currentMileage(5000)
-                .completedAt(LocalDateTime.now().minusDays(70))
+                .completedAt(FIXED_NOW.minusDays(70))
                 .build();
 
         when(vehicleClient.getActiveVehicles()).thenReturn(List.of(vehicle));
@@ -225,7 +232,7 @@ class ExecutePreventiveInspectionServiceTest {
         MaintenanceRule rule = createRule(5000, 30);
         MaintenanceOrder previousOrder = MaintenanceOrder.builder()
                 .currentMileage(10000)
-                .completedAt(LocalDateTime.now().minusDays(45))
+                .completedAt(FIXED_NOW.minusDays(45))
                 .build();
 
         when(vehicleClient.getActiveVehicles()).thenReturn(List.of(vehicle));
@@ -277,7 +284,8 @@ class ExecutePreventiveInspectionServiceTest {
         when(ruleRepository.findApplicableRule(vehicle.id(), VehicleCategory.AUTOMOVIL)).thenReturn(Optional.of(rule));
         when(orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id())).thenReturn(Optional.empty());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any())).thenThrow(new RuntimeException("Network down"));
+        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any()))
+                .thenThrow(new RuntimeException("Network down"));
 
         service.executeInspection();
 

@@ -16,8 +16,8 @@ class PreventiveMaintenanceRequiredEventTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    @DisplayName("Crea correctamente el CloudEvent y su payload Data con todos los campos")
-    void shouldCreateEventCorrectly() throws Exception {
+    @DisplayName("Crea correctamente los metadatos CloudEvents v1.0 y su payload Data")
+    void shouldCreateCloudEventMetadataAndData() {
         UUID orderId = UUID.randomUUID();
         UUID vehicleId = UUID.randomUUID();
         String reason = "KILOMETRAJE_SUPERADO";
@@ -53,8 +53,23 @@ class PreventiveMaintenanceRequiredEventTest {
         assertEquals(thresholdKm, data.umbralKm());
         assertEquals(elapsedDays, data.diasTranscurridos());
         assertNotNull(data.timestamp());
+    }
 
-        // Serialización JSON verifica nombres en snake_case
+    @Test
+    @DisplayName("Serializa correctamente el payload Data en formato JSON snake_case")
+    void shouldSerializeEventDataInSnakeCase() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+
+        PreventiveMaintenanceRequiredEvent event = PreventiveMaintenanceRequiredEvent.create(
+                orderId,
+                vehicleId,
+                "KILOMETRAJE_SUPERADO",
+                15000,
+                10000,
+                45L
+        );
+
         String json = objectMapper.writeValueAsString(event);
         JsonNode root = objectMapper.readTree(json);
         JsonNode dataNode = root.get("data");

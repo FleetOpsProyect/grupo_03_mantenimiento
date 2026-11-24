@@ -25,8 +25,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,6 +42,7 @@ import java.util.UUID;
 public class ExecutePreventiveInspectionService implements ExecutePreventiveInspectionUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExecutePreventiveInspectionService.class);
+    private static final ZoneId BOGOTA_ZONE = ZoneId.of("America/Bogota");
 
     private final VehicleServiceClientPort vehicleClient;
     private final RuleRepositoryPort ruleRepository;
@@ -101,119 +104,145 @@ public class ExecutePreventiveInspectionService implements ExecutePreventiveInsp
     }
 
     private void evaluateVehicle(VehicleSummary vehicle) {
-        // 1. Control de Idempotencia: Verificar orden activa (SCHEDULED_PENDING o IN_PROGRESS)
         if (orderRepository.findActiveOrderByVehicleId(vehicle.id()).isPresent()) {
             LOG.info("Vehículo {} ya posee una orden preventiva abierta en curso", vehicle.id());
             return;
         }
 
-        // 2. Resolución Jerárquica de Regla: Específica -> Categoría -> Global
         Optional<MaintenanceRule> applicableRuleOpt = ruleRepository.findApplicableRule(
                 vehicle.id(),
                 vehicle.category()
         );
-
         if (applicableRuleOpt.isEmpty()) {
             LOG.debug("Vehículo {} no tiene regla preventiva aplicable activa", vehicle.id());
             return;
         }
 
         MaintenanceRule rule = applicableRuleOpt.get();
-
-        // 3. Evaluación Multicriterio (Diferencial de km y tiempo)
-        Optional<MaintenanceOrder> latestCompletedOpt = orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id());
-
-        int currentKm = vehicle.mileage() != null ? vehicle.mileage() : 0;
-        int previousKm = latestCompletedOpt.map(o -> o.getCurrentMileage() != null ? o.getCurrentMileage() : 0).orElse(0);
-        int deltaKm = Math.max(0, currentKm - previousKm);
-
-        LocalDateTime baseDate = latestCompletedOpt
-                .map(o -> o.getCompletedAt() != null ? o.getCompletedAt() : o.getCreatedAt())
-                .orElseGet(() -> rule.getCreatedAt() != null ? rule.getCreatedAt() : LocalDateTime.now());
-
-        long deltaDays = Math.max(0, ChronoUnit.DAYS.between(baseDate, LocalDateTime.now()));
-
-        int thresholdKm = rule.getMileageIntervalKm() != null ? rule.getMileageIntervalKm() : Integer.MAX_VALUE;
-        int thresholdDays = rule.getTimeIntervalDays() != null ? rule.getTimeIntervalDays() : Integer.MAX_VALUE;
-
-        boolean kmExceeded = deltaKm >= thresholdKm;
-        boolean daysExceeded = deltaDays >= thresholdDays;
-
-        if (!kmExceeded && !daysExceeded) {
+        LocalDateTime currentTime = now();
+        Optional<EvaluationResult> evaluationOpt = evaluateCriteria(vehicle, rule, currentTime);
+        if (evaluationOpt.isEmpty()) {
             return;
         }
 
-        String reason;
-        if (kmExceeded && daysExceeded) {
-            reason = "AMBOS_CRITERIOS_SUPERADOS";
-        } else if (kmExceeded) {
-            reason = "KILOMETRAJE_SUPERADO";
-        } else {
-            reason = "TIEMPO_VENCIDO";
-        }
-
-        // 4. Persistir Orden Preventiva
+        EvaluationResult evaluation = evaluationOpt.get();
         MaintenanceOrder order = MaintenanceOrder.builder()
                 .id(UUID.randomUUID())
                 .vehicleId(vehicle.id())
                 .maintenanceType(MaintenanceType.PREVENTIVE)
                 .status(MaintenanceStatus.SCHEDULED_PENDING)
                 .origin(MaintenanceOrigin.SCHEDULER)
-                .currentMileage(currentKm)
+                .currentMileage(evaluation.currentKm())
                 .description(rule.getRoutineDescription())
-                .reason(reason)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .reason(evaluation.reason())
+                .createdAt(currentTime)
+                .updatedAt(currentTime)
                 .build();
 
         MaintenanceOrder savedOrder = orderRepository.save(order);
+        if (!lockVehicleOrCompensate(savedOrder)) {
+            return;
+        }
 
-        // 5. Bloqueo Síncrono del Vehículo en MS Vehículos con Transacción de Compensación
+        PreventiveMaintenanceRequiredEvent event = PreventiveMaintenanceRequiredEvent.create(
+                savedOrder.getId(),
+                vehicle.id(),
+                evaluation.reason(),
+                evaluation.currentKm(),
+                evaluation.thresholdKm(),
+                evaluation.deltaDays()
+        );
+
+        publishEventWithOutboxFallback(savedOrder.getId(), event, currentTime);
+        generatedOrdersCounter.increment();
+        LOG.info("Orden preventiva {} generada para vehículo {} por motivo {}",
+                savedOrder.getId(), vehicle.id(), evaluation.reason());
+    }
+
+    private Optional<EvaluationResult> evaluateCriteria(
+            VehicleSummary vehicle,
+            MaintenanceRule rule,
+            LocalDateTime currentTime
+    ) {
+        Optional<MaintenanceOrder> latestCompletedOpt = orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id());
+
+        int currentKm = Objects.requireNonNullElse(vehicle.mileage(), 0);
+        int previousKm = latestCompletedOpt
+                .map(o -> Objects.requireNonNullElse(o.getCurrentMileage(), 0))
+                .orElse(0);
+        int deltaKm = Math.max(0, currentKm - previousKm);
+
+        LocalDateTime baseDate = latestCompletedOpt
+                .map(o -> Objects.requireNonNullElse(o.getCompletedAt(), o.getCreatedAt()))
+                .orElseGet(() -> Objects.requireNonNullElse(rule.getCreatedAt(), currentTime));
+
+        long deltaDays = Math.max(0, ChronoUnit.DAYS.between(
+                baseDate.atZone(BOGOTA_ZONE),
+                currentTime.atZone(BOGOTA_ZONE)
+        ));
+
+        int thresholdKm = Objects.requireNonNullElse(rule.getMileageIntervalKm(), Integer.MAX_VALUE);
+        int thresholdDays = Objects.requireNonNullElse(rule.getTimeIntervalDays(), Integer.MAX_VALUE);
+
+        boolean kmExceeded = deltaKm >= thresholdKm;
+        boolean daysExceeded = deltaDays >= thresholdDays;
+        if (!kmExceeded && !daysExceeded) {
+            return Optional.empty();
+        }
+
+        String reason = resolveReason(kmExceeded, daysExceeded);
+        return Optional.of(new EvaluationResult(reason, currentKm, thresholdKm, deltaDays));
+    }
+
+    private static String resolveReason(boolean kmExceeded, boolean daysExceeded) {
+        if (kmExceeded && daysExceeded) {
+            return "AMBOS_CRITERIOS_SUPERADOS";
+        }
+        return kmExceeded ? "KILOMETRAJE_SUPERADO" : "TIEMPO_VENCIDO";
+    }
+
+    private boolean lockVehicleOrCompensate(MaintenanceOrder savedOrder) {
         boolean statusUpdated;
         try {
-            statusUpdated = vehicleClient.updateVehicleStatus(vehicle.id(), savedOrder.getId(), "IN_MAINTENANCE");
+            statusUpdated = vehicleClient.updateVehicleStatus(
+                    savedOrder.getVehicleId(),
+                    savedOrder.getId(),
+                    "IN_MAINTENANCE"
+            );
         } catch (Exception ex) {
-            LOG.warn("Excepción al intentar bloquear vehículo {}: {}", vehicle.id(), ex.getMessage());
+            LOG.warn("Excepción al intentar bloquear vehículo {}: {}",
+                    savedOrder.getVehicleId(), ex.getMessage());
             statusUpdated = false;
         }
 
         if (!statusUpdated) {
-            LOG.error("Error al bloquear vehículo {} en MS Vehículos; orden revertida", vehicle.id());
+            LOG.error("Error al bloquear vehículo {} en MS Vehículos; orden revertida", savedOrder.getVehicleId());
             savedOrder.cancel("Fallo al bloquear vehículo en MS Vehículos");
             orderRepository.save(savedOrder);
-            return;
+            return false;
         }
-
-        // 6. Publicación Asíncrona del Evento con Resiliencia (Transactional Outbox Fallback)
-        PreventiveMaintenanceRequiredEvent event = PreventiveMaintenanceRequiredEvent.create(
-                savedOrder.getId(),
-                vehicle.id(),
-                reason,
-                currentKm,
-                thresholdKm,
-                deltaDays
-        );
-
-        publishEventWithOutboxFallback(savedOrder.getId(), event);
-
-        // 7. Métrica de Prometheus
-        generatedOrdersCounter.increment();
-        LOG.info("Orden preventiva {} generada para vehículo {} por motivo {}", savedOrder.getId(), vehicle.id(), reason);
+        return true;
     }
 
-    private void publishEventWithOutboxFallback(UUID orderId, PreventiveMaintenanceRequiredEvent event) {
+    private void publishEventWithOutboxFallback(
+            UUID orderId,
+            PreventiveMaintenanceRequiredEvent event,
+            LocalDateTime createdAt
+    ) {
         String payloadJson;
         try {
             payloadJson = objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException ex) {
-            LOG.error("Error serializando evento de mantenimiento preventivo para orden {}: {}", orderId, ex.getMessage());
+            LOG.error("Error serializando evento de mantenimiento preventivo para orden {}: {}",
+                    orderId, ex.getMessage());
             payloadJson = "{}";
         }
 
         try {
             eventPublisher.publish(null, PreventiveMaintenanceRequiredEvent.SUBJECT, event);
         } catch (Exception ex) {
-            LOG.warn("Fallo al publicar evento asíncrono para orden {}. Persistiendo en Outbox: {}", orderId, ex.getMessage());
+            LOG.warn("Fallo al publicar evento asíncrono para orden {}. Persistiendo en Outbox: {}",
+                    orderId, ex.getMessage());
             OutboxMessage outboxMessage = OutboxMessage.builder()
                     .id(UUID.randomUUID())
                     .aggregateType("MAINTENANCE_ORDER")
@@ -225,9 +254,16 @@ public class ExecutePreventiveInspectionService implements ExecutePreventiveInsp
                     .status(OutboxStatus.PENDING)
                     .retryCount(0)
                     .errorMessage(ex.getMessage())
-                    .createdAt(LocalDateTime.now())
+                    .createdAt(createdAt)
                     .build();
             outboxRepository.save(outboxMessage);
         }
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(BOGOTA_ZONE);
+    }
+
+    private record EvaluationResult(String reason, int currentKm, int thresholdKm, long deltaDays) {
     }
 }
