@@ -171,7 +171,7 @@ public class ExecutePreventiveInspectionService implements ExecutePreventiveInsp
         // 5. Bloqueo Síncrono del Vehículo en MS Vehículos con Transacción de Compensación
         boolean statusUpdated;
         try {
-            statusUpdated = vehicleClient.updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO");
+            statusUpdated = vehicleClient.updateVehicleStatus(vehicle.id(), savedOrder.getId(), "IN_MAINTENANCE");
         } catch (Exception ex) {
             LOG.warn("Excepción al intentar bloquear vehículo {}: {}", vehicle.id(), ex.getMessage());
             statusUpdated = false;

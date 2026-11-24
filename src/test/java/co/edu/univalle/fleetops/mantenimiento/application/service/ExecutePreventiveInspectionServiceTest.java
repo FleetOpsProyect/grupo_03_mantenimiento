@@ -172,7 +172,7 @@ class ExecutePreventiveInspectionServiceTest {
         when(ruleRepository.findApplicableRule(vehicle.id(), VehicleCategory.AUTOMOVIL)).thenReturn(Optional.of(rule));
         when(orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id())).thenReturn(Optional.of(previousOrder));
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(vehicleClient.updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO")).thenReturn(true);
+        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any())).thenReturn(true);
 
         service.executeInspection();
 
@@ -187,7 +187,7 @@ class ExecutePreventiveInspectionServiceTest {
         assertEquals("KILOMETRAJE_SUPERADO", saved.getReason());
         assertEquals(rule.getRoutineDescription(), saved.getDescription());
 
-        verify(vehicleClient).updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO");
+        verify(vehicleClient).updateVehicleStatus(eq(vehicle.id()), any(UUID.class), eq("IN_MAINTENANCE"));
         verify(eventPublisher).publish(eq(null), eq(PreventiveMaintenanceRequiredEvent.SUBJECT), any(PreventiveMaintenanceRequiredEvent.class));
         verifyNoInteractions(outboxRepository);
         assertEquals(1.0, meterRegistry.counter("scheduler_mantenimientos_generados_total").count());
@@ -208,7 +208,7 @@ class ExecutePreventiveInspectionServiceTest {
         when(ruleRepository.findApplicableRule(vehicle.id(), VehicleCategory.CARGA_PESADA)).thenReturn(Optional.of(rule));
         when(orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id())).thenReturn(Optional.of(previousOrder));
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(vehicleClient.updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO")).thenReturn(true);
+        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any())).thenReturn(true);
 
         service.executeInspection();
 
@@ -233,7 +233,7 @@ class ExecutePreventiveInspectionServiceTest {
         when(ruleRepository.findApplicableRule(vehicle.id(), VehicleCategory.CAMIONETA)).thenReturn(Optional.of(rule));
         when(orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id())).thenReturn(Optional.of(previousOrder));
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(vehicleClient.updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO")).thenReturn(true);
+        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any())).thenReturn(true);
 
         service.executeInspection();
 
@@ -253,7 +253,7 @@ class ExecutePreventiveInspectionServiceTest {
         when(ruleRepository.findApplicableRule(vehicle.id(), VehicleCategory.AUTOMOVIL)).thenReturn(Optional.of(rule));
         when(orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id())).thenReturn(Optional.empty());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(vehicleClient.updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO")).thenReturn(false);
+        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any())).thenReturn(false);
 
         service.executeInspection();
 
@@ -277,7 +277,7 @@ class ExecutePreventiveInspectionServiceTest {
         when(ruleRepository.findApplicableRule(vehicle.id(), VehicleCategory.AUTOMOVIL)).thenReturn(Optional.of(rule));
         when(orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id())).thenReturn(Optional.empty());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(vehicleClient.updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO")).thenThrow(new RuntimeException("Network down"));
+        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any())).thenThrow(new RuntimeException("Network down"));
 
         service.executeInspection();
 
@@ -300,7 +300,7 @@ class ExecutePreventiveInspectionServiceTest {
         when(ruleRepository.findApplicableRule(vehicle.id(), VehicleCategory.AUTOMOVIL)).thenReturn(Optional.of(rule));
         when(orderRepository.findLatestCompletedOrderByVehicleId(vehicle.id())).thenReturn(Optional.empty());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(vehicleClient.updateVehicleStatus(vehicle.id(), "EN_MANTENIMIENTO")).thenReturn(true);
+        when(vehicleClient.updateVehicleStatus(eq(vehicle.id()), any(), any())).thenReturn(true);
         doThrow(new RuntimeException("SNS connection timeout")).when(eventPublisher).publish(any(), any(), any());
 
         service.executeInspection();

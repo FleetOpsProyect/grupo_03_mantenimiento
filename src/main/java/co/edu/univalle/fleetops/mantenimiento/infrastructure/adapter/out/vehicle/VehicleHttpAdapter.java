@@ -3,6 +3,7 @@ package co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.out.vehicl
 import co.edu.univalle.fleetops.mantenimiento.domain.exception.ServiceUnavailableException;
 import co.edu.univalle.fleetops.mantenimiento.domain.model.enums.VehicleCategory;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.out.VehicleServiceClientPort;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -31,8 +32,7 @@ import java.util.function.Supplier;
 
 /**
  * Adaptador de salida hacia MS Vehículos (HTTP síncrono).
- * Timeout configurable (5 s por defecto) y Circuit Breaker "vehicleService" de Resilience4j:
- * si Vehículos falla repetidamente, se dejan de enviar llamadas y se responde 503 de inmediato.
+ * Timeout configurable (5 s por defecto) y Circuit Breaker "vehicleService" de Resilience4j.
  */
 @Component
 public class VehicleHttpAdapter implements VehicleServiceClientPort {
@@ -65,12 +65,11 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
         return call("consultar el vehículo " + vehicleId, () -> {
             try {
                 VehicleDto dto = restClient.get()
-                        .uri("/vehiculos/{id}", vehicleId)
+                        .uri("/vehicles/{id}", vehicleId)
                         .retrieve()
                         .body(VehicleDto.class);
                 return Optional.ofNullable(dto).map(d -> toSummary(d, vehicleId));
             } catch (HttpClientErrorException.NotFound ex) {
-                // 404 es una respuesta de negocio válida, no un fallo de la dependencia
                 return Optional.empty();
             }
         });
@@ -83,7 +82,7 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
             long fetched = 0;
             for (int page = 0; page < MAX_PAGES; page++) {
                 VehiclePageDto body = fetchActivePage(page);
-                List<VehicleDto> content = body == null || body.contenido() == null ? List.of() : body.contenido();
+                List<VehicleDto> content = body == null || body.content() == null ? List.of() : body.content();
                 fetched += content.size();
                 for (VehicleDto dto : content) {
                     parseId(dto.id()).ifPresent(id -> result.add(toSummary(dto, id)));
@@ -98,21 +97,27 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
     }
 
     @Override
-    public boolean updateVehicleStatus(UUID vehicleId, String newStatus) {
+    public boolean updateVehicleStatus(UUID vehicleId, UUID maintenanceId, String newStatus) {
+        String normalizedStatus = normalizeStatus(newStatus);
+        String maintenanceIdStr = maintenanceId != null ? maintenanceId.toString() : "";
+        Map<String, String> payload = Map.of(
+                "status", normalizedStatus,
+                "maintenance_id", maintenanceIdStr
+        );
+
         try {
             return call("actualizar el estado del vehículo " + vehicleId, () -> {
                 try {
                     restClient.put()
-                            .uri("/vehiculos/{id}/estado", vehicleId)
+                            .uri("/vehicles/{id}/status", vehicleId)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .body(Map.of("estado", newStatus))
+                            .body(payload)
                             .retrieve()
                             .toBodilessEntity();
                     return true;
                 } catch (HttpClientErrorException ex) {
-                    // 4xx (p. ej. 409: el vehículo no estaba ACTIVO): Vehículos rechazó el cambio
                     LOG.warn("MS Vehículos rechazó el cambio de estado del vehículo {} a {}: HTTP {}",
-                            vehicleId, newStatus, ex.getStatusCode().value());
+                            vehicleId, normalizedStatus, ex.getStatusCode().value());
                     return false;
                 }
             });
@@ -123,8 +128,8 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
 
     private VehiclePageDto fetchActivePage(int page) {
         return restClient.get()
-                .uri(uri -> uri.path("/vehiculos")
-                        .queryParam("estado", "ACTIVO")
+                .uri(uri -> uri.path("/vehicles")
+                        .queryParam("status", "ACTIVE")
                         .queryParam("page", page)
                         .queryParam("size", PAGE_SIZE)
                         .build())
@@ -139,7 +144,6 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
             LOG.warn("Circuit Breaker abierto: no se intentó {}", operation);
             throw unavailable();
         } catch (RestClientException ex) {
-            // Incluye timeouts (ResourceAccessException) y errores 5xx
             LOG.error("Fallo al {} en MS Vehículos: {}", operation, ex.getMessage());
             throw unavailable();
         }
@@ -151,7 +155,8 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
     }
 
     private static VehicleSummary toSummary(VehicleDto dto, UUID id) {
-        return new VehicleSummary(id, dto.kilometrajeActual(), dto.estado(), parseCategory(dto.tipo()));
+        Integer mileage = dto.odometerKm() != null ? dto.odometerKm().intValue() : null;
+        return new VehicleSummary(id, mileage, dto.status(), parseCategory(dto.vehicleType()));
     }
 
     private static Optional<UUID> parseId(String raw) {
@@ -164,14 +169,35 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
     }
 
     private static VehicleCategory parseCategory(String tipo) {
-        if (tipo == null) {
+        if (tipo == null || tipo.isBlank()) {
             return null;
         }
-        try {
-            return VehicleCategory.valueOf(tipo.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
+        String normalized = tipo.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "CAR", "AUTOMOVIL" -> VehicleCategory.AUTOMOVIL;
+            case "PICKUP_TRUCK", "CAMIONETA" -> VehicleCategory.CAMIONETA;
+            case "SPECIALIZED_VEHICLE", "CARGA_PESADA" -> VehicleCategory.CARGA_PESADA;
+            default -> {
+                try {
+                    yield VehicleCategory.valueOf(normalized);
+                } catch (IllegalArgumentException ex) {
+                    yield null;
+                }
+            }
+        };
+    }
+
+    private static String normalizeStatus(String status) {
+        if (status == null) {
+            return "IN_MAINTENANCE";
         }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "EN_MANTENIMIENTO", "IN_MAINTENANCE" -> "IN_MAINTENANCE";
+            case "ACTIVO", "ACTIVE" -> "ACTIVE";
+            case "BLOQUEADO", "BLOCKED" -> "BLOCKED";
+            default -> normalized;
+        };
     }
 
     private static SimpleClientHttpRequestFactory timeoutRequestFactory(long timeoutMs) {
@@ -181,14 +207,22 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
         return factory;
     }
 
-    /** Respuesta de GET /vehiculos/{id} (contrato de MS Vehículos, snake_case). */
+    /** Respuesta de GET /vehicles/{id} (contrato oficial de MS Vehículos, snake_case). */
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record VehicleDto(String id, String estado, String tipo, Integer kilometrajeActual) {
+    record VehicleDto(
+            @JsonAlias("vehicle_id") String id,
+            @JsonAlias("estado") String status,
+            @JsonAlias("tipo") String vehicleType,
+            @JsonAlias("kilometraje_actual") Double odometerKm
+    ) {
     }
 
-    /** Respuesta paginada de GET /vehiculos: {contenido: [...], page, size, total}. */
+    /** Respuesta paginada de GET /vehicles: {content: [...], page, size, total}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record VehiclePageDto(List<VehicleDto> contenido, Long total) {
+    record VehiclePageDto(
+            @JsonAlias("contenido") List<VehicleDto> content,
+            Long total
+    ) {
     }
 }
