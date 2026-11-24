@@ -2,6 +2,8 @@ package co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.in.schedul
 
 import co.edu.univalle.fleetops.mantenimiento.domain.exception.ServiceUnavailableException;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.in.ExecutePreventiveInspectionUseCase;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,14 +19,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>Programado diariamente a las 02:00 AM. En caso de fallo crítico al consultar la flota activa en
  * MS Vehículos (error 5xx o timeout), reintenta a los 30 minutos con un máximo de 2 reintentos.
+ * Instrumenta métricas de Prometheus para duración ("scheduler_duracion_segundos").
  */
 @Component
 public class PreventiveInspectionScheduler {
 
     private static final Logger LOG = LoggerFactory.getLogger(PreventiveInspectionScheduler.class);
+    private static final String METRIC_DURATION = "scheduler_duracion_segundos";
 
     private final ExecutePreventiveInspectionUseCase inspectionUseCase;
     private final TaskScheduler taskScheduler;
+    private final MeterRegistry meterRegistry;
     private final long retryDelayMs;
     private final int maxRetries;
     private final AtomicInteger retryCount = new AtomicInteger(0);
@@ -32,11 +37,13 @@ public class PreventiveInspectionScheduler {
     public PreventiveInspectionScheduler(
             ExecutePreventiveInspectionUseCase inspectionUseCase,
             TaskScheduler taskScheduler,
+            MeterRegistry meterRegistry,
             @Value("${scheduler.preventive-inspection.retry-delay-ms:1800000}") long retryDelayMs,
             @Value("${scheduler.preventive-inspection.max-retries:2}") int maxRetries
     ) {
         this.inspectionUseCase = inspectionUseCase;
         this.taskScheduler = taskScheduler;
+        this.meterRegistry = meterRegistry;
         this.retryDelayMs = retryDelayMs;
         this.maxRetries = maxRetries;
     }
@@ -52,6 +59,7 @@ public class PreventiveInspectionScheduler {
     }
 
     public void executeWithRetryHandling() {
+        Timer.Sample sample = Timer.start(meterRegistry);
         try {
             inspectionUseCase.executeInspection();
             retryCount.set(0);
@@ -60,6 +68,8 @@ public class PreventiveInspectionScheduler {
             handleFailure(ex);
         } catch (Exception ex) {
             LOG.error("Error inesperado en la ejecución del scheduler de inspección preventiva: {}", ex.getMessage(), ex);
+        } finally {
+            sample.stop(meterRegistry.timer(METRIC_DURATION));
         }
     }
 

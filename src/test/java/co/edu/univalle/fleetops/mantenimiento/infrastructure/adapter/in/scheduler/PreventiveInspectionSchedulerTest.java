@@ -2,6 +2,8 @@ package co.edu.univalle.fleetops.mantenimiento.infrastructure.adapter.in.schedul
 
 import co.edu.univalle.fleetops.mantenimiento.domain.exception.ServiceUnavailableException;
 import co.edu.univalle.fleetops.mantenimiento.domain.port.in.ExecutePreventiveInspectionUseCase;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -29,25 +32,29 @@ class PreventiveInspectionSchedulerTest {
     @Mock
     private TaskScheduler taskScheduler;
 
+    private MeterRegistry meterRegistry;
     private PreventiveInspectionScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new PreventiveInspectionScheduler(inspectionUseCase, taskScheduler, 1000L, 2);
+        meterRegistry = new SimpleMeterRegistry();
+        scheduler = new PreventiveInspectionScheduler(inspectionUseCase, taskScheduler, meterRegistry, 1000L, 2);
     }
 
     @Test
-    @DisplayName("Ejecuta la inspección preventiva diaria con éxito y mantiene el contador en 0")
+    @DisplayName("Ejecuta la inspección preventiva diaria con éxito, registra timer y mantiene el contador en 0")
     void shouldExecuteDailyInspectionSuccessfully() {
         scheduler.executeDailyInspection();
 
         verify(inspectionUseCase).executeInspection();
         verify(taskScheduler, never()).schedule(any(Runnable.class), any(Instant.class));
         assertEquals(0, scheduler.getRetryCount());
+        assertEquals(1, meterRegistry.timer("scheduler_duracion_segundos").count());
+        assertTrue(meterRegistry.timer("scheduler_duracion_segundos").totalTime(java.util.concurrent.TimeUnit.NANOSECONDS) >= 0);
     }
 
     @Test
-    @DisplayName("Fallo por ServiceUnavailable programa el primer reintento en el TaskScheduler")
+    @DisplayName("Fallo por ServiceUnavailable registra timer y programa el primer reintento en el TaskScheduler")
     void shouldScheduleFirstRetryOnServiceUnavailable() {
         doThrow(new ServiceUnavailableException("VEHICLE_SERVICE_UNAVAILABLE", "MS Vehículos caído"))
                 .when(inspectionUseCase).executeInspection();
@@ -58,10 +65,11 @@ class PreventiveInspectionSchedulerTest {
         ArgumentCaptor<Instant> instantCaptor = ArgumentCaptor.forClass(Instant.class);
         verify(taskScheduler).schedule(any(Runnable.class), instantCaptor.capture());
         assertNotNull(instantCaptor.getValue());
+        assertEquals(1, meterRegistry.timer("scheduler_duracion_segundos").count());
     }
 
     @Test
-    @DisplayName("Fallo consecutivo programa el segundo reintento")
+    @DisplayName("Fallo consecutivo programa el segundo reintento y acumula muestras en el timer")
     void shouldScheduleSecondRetryOnConsecutiveFailure() {
         doThrow(new ServiceUnavailableException("VEHICLE_SERVICE_UNAVAILABLE", "MS Vehículos caído"))
                 .when(inspectionUseCase).executeInspection();
@@ -73,6 +81,7 @@ class PreventiveInspectionSchedulerTest {
         assertEquals(2, scheduler.getRetryCount());
 
         verify(taskScheduler, times(2)).schedule(any(Runnable.class), any(Instant.class));
+        assertEquals(2, meterRegistry.timer("scheduler_duracion_segundos").count());
     }
 
     @Test
@@ -87,10 +96,11 @@ class PreventiveInspectionSchedulerTest {
 
         verify(taskScheduler, times(2)).schedule(any(Runnable.class), any(Instant.class));
         assertEquals(0, scheduler.getRetryCount());
+        assertEquals(3, meterRegistry.timer("scheduler_duracion_segundos").count());
     }
 
     @Test
-    @DisplayName("Captura y no propaga errores inesperados no controlados")
+    @DisplayName("Captura errores inesperados, registra duración en timer y no propaga")
     void shouldHandleUnexpectedExceptionsGracefully() {
         doThrow(new IllegalStateException("Fallo inesperado"))
                 .when(inspectionUseCase).executeInspection();
@@ -99,5 +109,6 @@ class PreventiveInspectionSchedulerTest {
 
         verify(taskScheduler, never()).schedule(any(Runnable.class), any(Instant.class));
         assertEquals(0, scheduler.getRetryCount());
+        assertEquals(1, meterRegistry.timer("scheduler_duracion_segundos").count());
     }
 }

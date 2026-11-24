@@ -20,7 +20,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,7 +48,6 @@ public class ExecutePreventiveInspectionService implements ExecutePreventiveInsp
     private final OutboxRepositoryPort outboxRepository;
     private final ObjectMapper objectMapper;
     private final Counter generatedOrdersCounter;
-    private final Timer inspectionTimer;
 
     public ExecutePreventiveInspectionService(
             VehicleServiceClientPort vehicleClient,
@@ -67,12 +65,11 @@ public class ExecutePreventiveInspectionService implements ExecutePreventiveInsp
         this.outboxRepository = outboxRepository;
         this.objectMapper = objectMapper;
         this.generatedOrdersCounter = meterRegistry.counter("scheduler_mantenimientos_generados_total");
-        this.inspectionTimer = meterRegistry.timer("scheduler_duracion_segundos");
     }
 
     @Override
     public void executeInspection() {
-        inspectionTimer.record(this::runInspectionProcess);
+        runInspectionProcess();
     }
 
     private void runInspectionProcess() {
