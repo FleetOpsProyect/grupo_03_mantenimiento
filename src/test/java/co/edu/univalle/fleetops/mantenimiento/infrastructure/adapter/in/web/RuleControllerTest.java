@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RuleControllerTest {
 
     private static final String URL = "/maintenance/rules";
+    private static final LocalDateTime FIXED_NOW = LocalDateTime.of(2026, Month.NOVEMBER, 24, 12, 0);
 
     @Autowired
     private MockMvc mockMvc;
@@ -64,8 +66,8 @@ class RuleControllerTest {
             MaintenanceRule rule = inv.getArgument(0);
             rule.setId(id);
             rule.setIsActive(true);
-            rule.setCreatedAt(LocalDateTime.now());
-            rule.setUpdatedAt(LocalDateTime.now());
+            rule.setCreatedAt(FIXED_NOW);
+            rule.setUpdatedAt(FIXED_NOW);
             return rule;
         });
 

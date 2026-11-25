@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -69,8 +70,9 @@ class DomainModelTest {
         assertEquals("Vehículo dado de baja", order.getReason());
 
         // Asignar técnico a orden cancelada
+        UUID cancelledOrderTechId = UUID.randomUUID();
         assertThrows(InvalidStateTransitionException.class, () ->
-                order.assignTechnician(UUID.randomUUID())
+                order.assignTechnician(cancelledOrderTechId)
         );
 
         // Iniciar orden cancelada
@@ -83,8 +85,9 @@ class DomainModelTest {
                 .build();
 
         // Asignar técnico o cancelar orden completada
+        UUID completedOrderTechId = UUID.randomUUID();
         assertThrows(InvalidStateTransitionException.class, () ->
-                completedOrder.assignTechnician(UUID.randomUUID())
+                completedOrder.assignTechnician(completedOrderTechId)
         );
         assertThrows(InvalidStateTransitionException.class, () ->
                 completedOrder.cancel("Intento cancelación")
@@ -216,7 +219,7 @@ class DomainModelTest {
     @DisplayName("Debe verificar getters, setters y constructores de modelos auxiliares")
     void shouldCoverAuxiliaryDomainModels() {
         UUID id = UUID.randomUUID();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.of(2026, Month.NOVEMBER, 24, 12, 0);
 
         // AccessAuditLog
         AccessAuditLog audit = new AccessAuditLog();
