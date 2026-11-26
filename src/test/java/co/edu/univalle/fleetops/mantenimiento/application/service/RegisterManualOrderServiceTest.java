@@ -62,7 +62,7 @@ class RegisterManualOrderServiceTest {
             saved.setId(UUID.randomUUID());
             return saved;
         });
-        when(vehicleServiceClientPort.updateVehicleStatus(vehicleId, "EN_MANTENIMIENTO")).thenReturn(true);
+        when(vehicleServiceClientPort.updateVehicleStatus(eq(vehicleId), any(UUID.class), eq("EN_MANTENIMIENTO"))).thenReturn(true);
 
         MaintenanceOrder result = service.registerManualOrder(inputOrder);
 
@@ -75,7 +75,7 @@ class RegisterManualOrderServiceTest {
 
         verify(vehicleServiceClientPort).getVehicleById(vehicleId);
         verify(orderRepositoryPort).save(any(MaintenanceOrder.class));
-        verify(vehicleServiceClientPort).updateVehicleStatus(vehicleId, "EN_MANTENIMIENTO");
+        verify(vehicleServiceClientPort).updateVehicleStatus(eq(vehicleId), any(UUID.class), eq("EN_MANTENIMIENTO"));
     }
 
     @Test
@@ -98,7 +98,7 @@ class RegisterManualOrderServiceTest {
 
         verify(vehicleServiceClientPort).getVehicleById(vehicleId);
         verify(orderRepositoryPort, never()).save(any());
-        verify(vehicleServiceClientPort, never()).updateVehicleStatus(any(), any());
+        verify(vehicleServiceClientPort, never()).updateVehicleStatus(any(), any(), any());
     }
 
     @Test
@@ -122,14 +122,14 @@ class RegisterManualOrderServiceTest {
             saved.setId(UUID.randomUUID());
             return saved;
         });
-        when(vehicleServiceClientPort.updateVehicleStatus(vehicleId, "EN_MANTENIMIENTO")).thenReturn(false);
+        when(vehicleServiceClientPort.updateVehicleStatus(eq(vehicleId), any(UUID.class), eq("EN_MANTENIMIENTO"))).thenReturn(false);
 
         assertThatThrownBy(() -> service.registerManualOrder(inputOrder))
                 .isInstanceOf(VehicleSyncException.class)
                 .hasMessage("Error de sincronización con el servicio de vehículos");
 
         verify(orderRepositoryPort).save(any(MaintenanceOrder.class));
-        verify(vehicleServiceClientPort).updateVehicleStatus(vehicleId, "EN_MANTENIMIENTO");
+        verify(vehicleServiceClientPort).updateVehicleStatus(eq(vehicleId), any(UUID.class), eq("EN_MANTENIMIENTO"));
     }
 
     @Test

@@ -60,6 +60,7 @@ public class RegisterManualOrderService implements RegisterManualOrderUseCase {
         // 4. Notificar a Vehiculos para cambiar su estado a EN_MANTENIMIENTO
         boolean vehicleUpdated = vehicleServiceClientPort.updateVehicleStatus(
                 order.getVehicleId(),
+                savedOrder.getId(),
                 "EN_MANTENIMIENTO"
         );
 

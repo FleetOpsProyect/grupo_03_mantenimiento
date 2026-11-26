@@ -77,7 +77,7 @@ public class VehicleHttpAdapter implements VehicleServiceClientPort {
     }
 
     @Override
-    public boolean updateVehicleStatus(UUID vehicleId, String newStatus) {
+    public boolean updateVehicleStatus(UUID vehicleId, UUID maintenanceId, String newStatus) {
         String url = vehiclesBaseUrl + "/vehiculos/" + vehicleId + "/estado";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

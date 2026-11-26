@@ -87,7 +87,7 @@ class VehicleHttpAdapterTest {
                 eq(Void.class)
         )).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 
-        boolean updated = adapter.updateVehicleStatus(vehicleId, "EN_MANTENIMIENTO");
+        boolean updated = adapter.updateVehicleStatus(vehicleId, UUID.randomUUID(), "EN_MANTENIMIENTO");
 
         assertThat(updated).isTrue();
     }
@@ -104,7 +104,7 @@ class VehicleHttpAdapterTest {
                 eq(Void.class)
         )).thenThrow(new ResourceAccessException("Connection refused"));
 
-        boolean updated = adapter.updateVehicleStatus(vehicleId, "EN_MANTENIMIENTO");
+        boolean updated = adapter.updateVehicleStatus(vehicleId, UUID.randomUUID(), "EN_MANTENIMIENTO");
 
         assertThat(updated).isFalse();
     }
