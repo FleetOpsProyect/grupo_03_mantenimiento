@@ -13,11 +13,15 @@ public interface VehicleServiceClientPort {
             Integer mileage,
             String status,
             VehicleCategory category
-    ) {}
+    ) {
+        public boolean isActive() {
+            return "ACTIVE".equalsIgnoreCase(status) || "ACTIVO".equalsIgnoreCase(status);
+        }
+    }
 
     List<VehicleSummary> getActiveVehicles();
 
     Optional<VehicleSummary> getVehicleById(UUID vehicleId);
 
-    boolean updateVehicleStatus(UUID vehicleId, String newStatus);
+    boolean updateVehicleStatus(UUID vehicleId, UUID maintenanceId, String newStatus);
 }

@@ -5,7 +5,11 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      # Fijo dentro del contenedor: el HEALTHCHECK del Dockerfile depende de este puerto.
+      MANAGEMENT_PORT: "18001"
     ports:
       - "${PORT:-8083}:8083"
+      - "${MANAGEMENT_HOST_PORT:-18001}:18001"
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -56,6 +56,14 @@ public class MaintenanceRule {
         if (scope == RuleScope.VEHICLE && vehicleId == null) {
             throw new BusinessRuleException("VEHICLE_REQUIRED", "El ID del vehículo es obligatorio para reglas de alcance VEHICULO");
         }
+        if (scope != RuleScope.CATEGORY && category != null) {
+            throw new BusinessRuleException("FIELD_NOT_ALLOWED_FOR_SCOPE",
+                    "La categoría solo se permite en reglas de alcance CATEGORIA");
+        }
+        if (scope != RuleScope.VEHICLE && vehicleId != null) {
+            throw new BusinessRuleException("FIELD_NOT_ALLOWED_FOR_SCOPE",
+                    "El ID del vehículo solo se permite en reglas de alcance VEHICULO");
+        }
         if (mileageIntervalKm == null || mileageIntervalKm < 1000 || mileageIntervalKm > 50000) {
             throw new BusinessRuleException("INVALID_KM_THRESHOLD", "El umbral de kilometraje debe estar entre 1,000 y 50,000 km");
         }

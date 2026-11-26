@@ -38,8 +38,8 @@ Este repositorio implementa el **microservicio de Mantenimiento**: encargado de 
 │             Microservicio de Mantenimiento (Spring Boot 3.4)             │
 │                                                                          │
 │  [ Inbound Adapters ]                                                    │
-│   - REST Controllers (/mantenimientos, /maintenance, /technicians)       │
-│   - SQS Consumer (@SqsListener: mantenimiento.incidente.reportado)       │
+│   - REST Controllers (/maintenance, /technicians)                        │
+│   - SQS Consumer (@SqsListener: incidente.reportado)                        │
 │   - Scheduled Tasks (@Scheduled cron 02:00 AM)                           │
 │                              ↓                                           │
 │  [ Domain & Application Layer (Java 21 Puro) ]                           │
@@ -50,11 +50,11 @@ Este repositorio implementa el **microservicio de Mantenimiento**: encargado de 
 │  [ Outbound Adapters ]                                                   │
 │   - JPA Persistence (Hibernate + Repositorios Spring Data)               │
 │   - HTTP Client a MS Vehículos (Resilience4j Circuit Breaker)           │
-│   - Event Publisher (SnsPublisherAdapter + Outbox Relay SKIP LOCKED)     │
+│   - Event Publisher (AWS SNS Outbox Relay con SKIP LOCKED)               │
 └───────────────────────┬──────────────────────────┬───────────────────────┘
                         ↓                          ↓
-         [ Base de Datos (PostgreSQL) ]   [ Broker (AWS SNS / SQS) ]
-          (Supabase Pooler o Local)        (Tópicos SNS y Colas SQS DLQ)
+         [ Base de Datos (PostgreSQL) ]   [ AWS SNS / SQS ]
+          (Supabase Pooler o Local)        (Tópicos SNS y Colas SQS)
 ```
 
 ### Decisiones arquitectónicas
@@ -64,11 +64,11 @@ Este repositorio implementa el **microservicio de Mantenimiento**: encargado de 
 | Dominio | Arquitectura Hexagonal / DDD | Java 21 puro sin dependencias de Spring Boot |
 | Casos de Uso | Ports and Adapters (Inbound / Outbound) | Interfaces en `port/in` y `port/out` |
 | Entrada Web | REST Controllers + DTOs + Global Exception Handler | Spring Web MVC + Springdoc OpenAPI 2.8 |
-| Entrada Asíncrona | Message Consumer (SQS Queue + DLQ) | Spring Cloud AWS (`@SqsListener`) + CloudEvents v1.0 |
+| Entrada Asíncrona | Message Consumer (SQS Queue) | Spring Cloud AWS (`@SqsListener`) + CloudEvents v1.0 |
 | Programación | Tareas programadas con compensación | Spring `@Scheduled` (`0 0 2 * * *`) |
 | Persistencia | Repository Pattern + Transactional Outbox | Spring Data JPA + Hibernate 6 + Flyway |
-| Integración HTTP | Circuit Breaker con ventana móvil y degradación | Resilience4j + RestTemplate |
-| Publicación de Eventos | Outbox Relay con `FOR UPDATE SKIP LOCKED` | AWS SNS (`SnsPublisherAdapter`) |
+| Integración HTTP | Circuit Breaker con ventana móvil y degradación | Resilience4j + RestClient |
+| Publicación de Eventos | Outbox Relay con `FOR UPDATE SKIP LOCKED` | Spring Cloud AWS (`SnsTemplate`) |
 
 ## Enlaces a Documentación
 
@@ -90,7 +90,7 @@ Puedes consultar la documentación técnica extendida y los artefactos de diseñ
 | Spring Boot | 3.4.3 | Framework empresarial para inyección de dependencias y configuración |
 | Spring Data JPA | 3.4.x | Mapeo objeto-relacional y persistencia |
 | Flyway | 10.x | Control de versiones y migraciones automatizadas de esquemas de BD |
-| AWS SNS / SQS | — | Broker de mensajería para eventos CloudEvents v1.0 |
+| AWS SNS / SQS | 3.3.0 (Spring Cloud AWS) | Mensajería asíncrona para eventos CloudEvents v1.0 |
 | Resilience4j | 2.x | Tolerancia a fallos y Circuit Breaker para llamadas a MS Vehículos |
 | Springdoc OpenAPI | 2.8.5 | Generación de contratos interactivos Swagger UI / OpenAPI 3.0 |
 
@@ -105,7 +105,7 @@ Puedes consultar la documentación técnica extendida y los artefactos de diseñ
 | Tecnología | Versión | Uso |
 |---|---|---|
 | PostgreSQL | 15+ / 16 | Base de datos relacional (Supabase Session Pooler o PostgreSQL local) |
-| AWS SNS / SQS | Managed | Broker de mensajería asíncrona gestionado |
+| AWS SNS / SQS | — | Tópicos y colas administradas para mensajería asíncrona |
 | Docker & Docker Compose | v2+ | Contenerización y orquestación local y de producción |
 | AWS EC2 | Amazon Linux 2023 | Servidor de despliegue continuo en la nube |
 | Docker Hub | — | Registro centralizado de imágenes de producción |
@@ -120,7 +120,7 @@ Antes de ejecutar el microservicio, asegúrate de contar con:
 - **Gradle**: 9.x (opcional, ya que se incluye el wrapper `./gradlew` y `.\gradlew.bat`).
 - **Docker & Docker Compose**: v2.27+ para ejecución local en contenedores.
 - **Base de datos PostgreSQL**: Instancia local accesible o proyecto en la nube (ej. Supabase).
-- **AWS SNS / SQS**: Acceso a credenciales de AWS o emulador LocalStack configurado.
+- **Cuenta AWS (SNS / SQS)**: Tópico SNS y cola SQS configurados (o LocalStack para pruebas locales).
 
 ---
 
@@ -155,13 +155,12 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://<host-db>:<puerto>/<nombre-db>?sslmode=r
 SPRING_DATASOURCE_USERNAME=<tu-usuario-db>
 SPRING_DATASOURCE_PASSWORD=<tu-contraseña-db>
 
-# Broker AWS SNS / SQS
+# Mensajería Asíncrona (AWS SNS / SQS)
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=<tu-access-key-id>
 AWS_SECRET_ACCESS_KEY=<tu-secret-access-key>
-AWS_SQS_INCIDENT_QUEUE=mantenimiento.incidente.reportado
-AWS_SQS_INCIDENT_DLQ=mantenimiento.incidentes.dlq
-AWS_SNS_MAINTENANCE_TOPIC_ARN=arn:aws:sns:us-east-1:<account-id>:fleetops-mantenimiento-topic
+AWS_SNS_TOPIC_ARN=arn:aws:sns:us-east-1:<account-id>:fleetops-maintenance-events
+AWS_SQS_INCIDENT_QUEUE=fleetops-maintenance-incidents
 
 # Integración con Microservicio de Vehículos
 VEHICLES_SERVICE_URL=http://<host-vehiculos>:8081
@@ -193,9 +192,13 @@ Una vez iniciado el microservicio, verifica los endpoints principales:
 | Endpoint | Descripción | URL |
 |---|---|---|
 | **API Base** | Recurso principal de órdenes | http://localhost:8083/maintenance |
-| **Health Check** | Estado del servicio y sondas Actuator | http://localhost:8083/actuator/health |
+| **Health Check** | Estado del servicio y de sus componentes (`db`, `vehicles`, `diskSpace`) | http://localhost:18001/actuator/health |
+| **Readiness** | Sonda usada por el `HEALTHCHECK` de Docker (no incluye MS Vehículos) | http://localhost:18001/actuator/health/readiness |
+| **Métricas Prometheus** | Métricas de la API, JVM, pool de conexiones, Circuit Breaker y `app_health_status` | http://localhost:18001/actuator/prometheus |
 | **Swagger UI** | Documentación interactiva OpenAPI | http://localhost:8083/swagger-ui/index.html |
 | **OpenAPI Spec** | Especificación JSON de la API | http://localhost:8083/v3/api-docs |
+
+> El Actuator responde en un puerto de gestión propio (`MANAGEMENT_PORT`, por defecto `18001`), separado del puerto de la API. En producción ese puerto solo debe estar abierto en el Security Group para la IP de monitoreo. Dentro del contenedor de producción los logs salen en JSON (formato ECS) para que Loki los indexe.
 
 ## Comandos útiles
 
