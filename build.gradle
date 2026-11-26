@@ -143,13 +143,15 @@ sonar {
 		property 'sonar.organization', System.getenv('SONAR_ORGANIZATION') ?: 'sebastian6174'
 		property 'sonar.host.url', 'https://sonarcloud.io'
 		property 'sonar.coverage.jacoco.xmlReportPaths', 'build/reports/jacoco/test/jacocoTestReport.xml'
+		// Mismas exclusiones que JaCoCo (arriba). Sonar compara archivos fuente .java con rutas relativas
+		// a la raiz del proyecto (src/main/java/...), por eso los patrones empiezan con **/.
 		property 'sonar.coverage.exclusions',
-				'co/edu/univalle/fleetops/mantenimiento/config/**,' +
-						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**,' +
-						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**,' +
-						'co/edu/univalle/fleetops/mantenimiento/domain/exception/**,' +
-						'co/edu/univalle/fleetops/mantenimiento/domain/model/**/record/**,' +
-						'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+				'**/config/**,' +
+						'**/infrastructure/adapter/in/web/dto/**,' +
+						'**/infrastructure/adapter/out/persistence/entity/**,' +
+						'**/domain/exception/**,' +
+						'**/domain/model/**/record/**,' +
+						'**/MantenimientoApplication.java'
 		property 'sonar.java.source', '21'
 		if (System.getenv('SONAR_TOKEN')) {
 			property 'sonar.token', System.getenv('SONAR_TOKEN')
