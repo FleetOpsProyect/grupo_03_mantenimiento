@@ -47,6 +47,15 @@ spring:
     aws:
       region:
         static: ${AWS_REGION:us-east-1}
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      sqs:
+        queue:
+          incident-report: ${AWS_SQS_INCIDENT_QUEUE:mantenimiento.incidente.reportado}
+          incident-dlq: ${AWS_SQS_INCIDENT_DLQ:mantenimiento.incidentes.dlq}
+      sns:
+        topic-arn: ${AWS_SNS_MAINTENANCE_TOPIC_ARN:}
       sns:
         enabled: ${AWS_SNS_ENABLED:true}
       sqs:

@@ -30,7 +30,7 @@ Este documento consolida las discrepancias, inconsistencias y decisiones de dise
 ---
 
 ## 3. Liberación del Vehículo al Finalizar Mantenimiento (HU-08)
-* **Decisión Confirmada:** La reactivación del vehículo se realizará exclusivamente a través del evento asíncrono **`MantenimientoFinalizadoEvent`** en RabbitMQ (mediante el patrón Transactional Outbox), desacoplando Mantenimiento del MS Vehículos bajo la arquitectura EDA descrita en el DAS.
+* **Decisión Confirmada:** La reactivación del vehículo se realizará a través del evento asíncrono **`MantenimientoFinalizadoEvent`** publicado en AWS SNS / SQS (mediante el patrón Transactional Outbox), desacoplando Mantenimiento del MS Vehículos bajo la arquitectura EDA descrita en el DAS V0.4.
 
 ---
 
@@ -43,8 +43,11 @@ Este documento consolida las discrepancias, inconsistencias y decisiones de dise
 
 ---
 
-## 5. Estándar de Mensajería
-* **Decisión:** Eventos bajo especificación **CloudEvents v1.0** transportados vía RabbitMQ en formato JSON.
+## 5. Estándar y Broker de Mensajería (Migración a AWS SNS / SQS - DAS V0.4)
+* **Decisión Confirmada:** Se actualizó el broker de mensajería reemplazando RabbitMQ por **AWS SNS / SQS** conforme a la versión 0.4 del DAS:
+  * **Eventos entrantes (HU-04):** Consumo desde la cola SQS `mantenimiento.incidente.reportado` mediante `@SqsListener` (`ReportedIncidentListener`), con Dead Letter Queue (DLQ `mantenimiento.incidentes.dlq`) tras 3 reintentos fallidos e idempotencia por `incidente_id`.
+  * **Eventos salientes (HU-02, HU-08):** Publicación en tópicos de AWS SNS a través del adaptador `SnsPublisherAdapter` asistido por el patrón Transactional Outbox con `FOR UPDATE SKIP LOCKED`.
+  * **Estándar de eventos:** Todos los payloads se serializan bajo la especificación **CloudEvents v1.0** en formato JSON.
 
 ---
 
@@ -189,5 +192,34 @@ Tras la revisión de código automatizada (Qodo / CI), se adoptaron las siguient
 
 6. **Endurecimiento de Actuator:**
    - Se restringen los endpoints públicos de Spring Actuator a `health` e `info` con `show-details: when_authorized`, protegiendo métricas operativas y datos de infraestructura.
+
+---
+
+## 9. Decisiones y Especificación de HU-03: Registro Manual de Órdenes de Mantenimiento
+
+Para dar cumplimiento estricto a la Historia de Usuario 3 según el Product Backlog y el DAS V0.4:
+
+1. **Rutas y Contrato de Entrada:**
+   - Se expone el endpoint principal `POST /mantenimientos` junto con el alias `POST /maintenance`.
+   - Se valida el payload mediante `CreateManualOrderRequest`:
+     - `vehiculo_id` (`UUID v4`, obligatorio).
+     - `tipo_mantenimiento` (Enum: `"PREVENTIVO"` | `"CORRECTIVO"`, obligatorio).
+     - `descripcion` (Alfanumérico, entre 10 y 300 caracteres, obligatorio).
+     - `taller_asignado` (Alfanumérico, máximo 100 caracteres, obligatorio).
+     - `tecnico_id` (`UUID v4`, opcional).
+   - Si faltan campos requeridos o se envían valores no contemplados, se retorna `HTTP 400 Bad Request` con `{"mensaje": "Estructura de solicitud inválida o campos requeridos ausentes"}`.
+
+2. **Validación Síncrona de Existencia del Vehículo:**
+   - Se realiza una llamada HTTP síncrona `GET /vehiculos/{vehiculo_id}` al microservicio de Vehículos mediante el adaptador `VehicleHttpAdapter`.
+   - Si el servicio responde `404 Not Found` (o el vehículo no existe), se rechaza la solicitud retornando `HTTP 404 Not Found` con el mensaje: `{"mensaje": "El vehículo especificado no existe en el sistema"}`.
+
+3. **Creación de Orden e Idempotencia:**
+   - La orden se registra con estado inicial `PENDIENTE` (mapeado al enum de dominio `SCHEDULED_PENDING`), origen `MANUAL` y `currentMileage` obtenido del vehículo.
+   - Retorna `HTTP 201 Created` con el cuerpo `{"orden_id": "{id}", "mensaje": "Orden de mantenimiento creada exitosamente"}`.
+
+4. **Sincronización y Bloqueo de Estado del Vehículo (Criterio 5):**
+   - Tras persistir la orden, se envía síncronamente `PUT /vehiculos/{id}/estado` con `{"estado": "EN_MANTENIMIENTO"}`.
+   - Si la comunicación de red falla o Vehículos no responde, el servicio lanza `VehicleSyncException`, provocando un **rollback transaccional completo** de la orden creada en base de datos y retornando `HTTP 502 Bad Gateway` con el mensaje: `{"mensaje": "Error de sincronización con el servicio de vehículos"}`.
+
 
 

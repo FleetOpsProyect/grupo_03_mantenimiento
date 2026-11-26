@@ -76,7 +76,7 @@ Puedes consultar la documentación técnica extendida y los artefactos de diseñ
 
 - **Decisiones Arquitectónicas y Observaciones:** [`solution/decisiones_y_observaciones.md`](solution/decisiones_y_observaciones.md)
 - **Guía de Contribución y Flujo de Trabajo:** [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- **Documento de Arquitectura de Software (DAS):** `solution/MANTENIMIENTO_DAS_V_0_3.docx`
+- **Documento de Arquitectura de Software (DAS V0.4):** `solution/MANTENIMIENTO_DAS_V_0_4.docx`
 - **Product Backlog y Matriz de Historias de Usuario:** `solution/Mantenimiento_ProductBacklogV2.0.xlsx`
 - **Matriz de Endpoints y Eventos:** `solution/FleetOps_Endpoints_y_Eventos_Modulo_Mantenimiento.xlsx`
 - **Definición de Contratos de Eventos:** `solution/Definicion de eventos.docx`
@@ -97,9 +97,9 @@ Puedes consultar la documentación técnica extendida y los artefactos de diseñ
 ### Integración y Servicios Satélite
 | Servicio / Módulo | Protocolo | Uso |
 |---|---|---|
-| MS Vehículos | HTTP / REST | Consulta de kilometraje, categoría y datos de vehículos |
-| MS Incidentes | AWS SQS / SNS | Evento entrante `incidente.reportado` para órdenes correctivas |
-| MS Vehículos | AWS SNS / SQS | Evento saliente `mantenimiento.finalizado` para reactivar flota |
+| MS Vehículos | HTTP / REST | Consulta de kilometraje, existencia y bloqueo a `EN_MANTENIMIENTO` |
+| MS Incidentes | AWS SQS | Evento entrante `incidente.reportado` para órdenes correctivas |
+| MS Vehículos | AWS SNS | Evento saliente `mantenimiento.finalizado` para reactivar flota |
 
 ### Infraestructura y datos
 | Tecnología | Versión | Uso |

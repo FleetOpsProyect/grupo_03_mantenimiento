@@ -21,13 +21,14 @@ DAR            ──●──●──●────────────�
 jsfv           ──●──●──●──────────────────────────────────── (rama personal - Jhoan Fernández)
 jss            ──●──●──●──●───────────────────────────────── (rama personal - Juan Sebastián Sierra)
 nco            ──●──●──●──────────────────────────────────── (rama personal - Nicolás Córdoba)
+maj            ──●──●──●──────────────────────────────────── (rama personal - Juan Manuel Ampudia)
 ```
 
 ### Ramas Principales
 
 - **`main`**: Rama de producción y entregas oficiales. Solo recibe cambios al cierre de cada sprint validado tras demo funcional y aprobación general. Cada merge a `main` debe llevar un tag de versión semántica (ej. `v0.1.0`, `v1.0.0`). **Protegida** (sin push directo).
 - **`develop`**: Rama base de integración continua. Confluye el trabajo completado, testeado y validado del equipo. **Protegida** (requiere Pull Request aprobado y paso obligatorio de CI).
-- **Ramas personales (`DAR`, `jsfv`, `jss`, `nco`)**: Cada integrante del equipo dispone de su rama de desarrollo personal asociada para trabajar en sus historias de usuario, adaptadores o tareas asignadas antes de promoverlas a `develop`.
+- **Ramas personales (`DAR`, `jsfv`, `jss`, `nco`, `maj`)**: Cada integrante del equipo dispone de su rama de desarrollo personal asociada para trabajar en sus historias de usuario, adaptadores o tareas asignadas antes de promoverlas a `develop`.
 
 ---
 
@@ -114,7 +115,7 @@ Al abrir o actualizar un PR hacia `develop` o `main`, GitHub Actions ejecuta aut
 8. **Qodo AI Review (`qodo-review.yml`)**: Analiza el diff del PR con el modelo Gemini para retroalimentación automatizada de código, mejores prácticas y seguridad.
 
 > [!IMPORTANT]
-> Un PR con checks en rojo no podrá ser mezclado bajo ninguna circunstancia.
+> Un PR con checks en rojo no podrá hacer merge bajo ninguna circunstancia.
 
 ---
 
