@@ -6,8 +6,24 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      # Fijo dentro del contenedor: el HEALTHCHECK del Dockerfile depende de este puerto.
+      MANAGEMENT_PORT: "18001"
+      # Logs en JSON (formato ECS) para que Alloy/Loki los indexen por nivel y logger.
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
     restart: unless-stopped
+    # Limite para un EC2 de 2 GB compartido con Loki, Alloy y los exportadores. Sin limite, la JVM
+    # (MaxRAMPercentage=75) calcula su heap sobre la RAM total del host y puede provocar un OOM.
+    mem_limit: 900m
     ports:
       - "${PORT:-8083}:8083"
+      # Actuator: el Security Group solo debe permitir este puerto desde la IP de monitoreo.
+      - "${MANAGEMENT_HOST_PORT:-18001}:18001"
+    # Rotacion de logs de Docker para no llenar el disco del EC2.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     extra_hosts:
       - "host.docker.internal:host-gateway"

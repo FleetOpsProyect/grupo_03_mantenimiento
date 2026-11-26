@@ -35,15 +35,17 @@ RUN chown -R spring:spring /app
 
 USER spring:spring
 
-# Puerto interno expuesto por Spring Boot.
-EXPOSE 8083
+# Puerto de la API y puerto de gestion (Actuator: health y metricas Prometheus).
+ENV MANAGEMENT_PORT=18001
+EXPOSE 8083 18001
 
 # Ajustes de memoria y finalizacion ante falta de memoria.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
 
 # Docker marca el contenedor como saludable cuando Spring esta listo.
+# El Actuator responde en el puerto de gestion, no en el de la API.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl --fail --silent http://localhost:8083/actuator/health/readiness || exit 1
+    CMD curl --fail --silent "http://localhost:${MANAGEMENT_PORT}/actuator/health/readiness" || exit 1
 
 # Comando principal del contenedor.
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

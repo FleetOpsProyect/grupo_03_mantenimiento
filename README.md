@@ -192,9 +192,13 @@ Una vez iniciado el microservicio, verifica los endpoints principales:
 | Endpoint | Descripción | URL |
 |---|---|---|
 | **API Base** | Recurso principal de órdenes | http://localhost:8083/maintenance |
-| **Health Check** | Estado del servicio y sondas Actuator | http://localhost:8083/actuator/health |
+| **Health Check** | Estado del servicio y de sus componentes (`db`, `vehicles`, `diskSpace`) | http://localhost:18001/actuator/health |
+| **Readiness** | Sonda usada por el `HEALTHCHECK` de Docker (no incluye MS Vehículos) | http://localhost:18001/actuator/health/readiness |
+| **Métricas Prometheus** | Métricas de la API, JVM, pool de conexiones, Circuit Breaker y `app_health_status` | http://localhost:18001/actuator/prometheus |
 | **Swagger UI** | Documentación interactiva OpenAPI | http://localhost:8083/swagger-ui/index.html |
 | **OpenAPI Spec** | Especificación JSON de la API | http://localhost:8083/v3/api-docs |
+
+> El Actuator responde en un puerto de gestión propio (`MANAGEMENT_PORT`, por defecto `18001`), separado del puerto de la API. En producción ese puerto solo debe estar abierto en el Security Group para la IP de monitoreo. Dentro del contenedor de producción los logs salen en JSON (formato ECS) para que Loki los indexe.
 
 ## Comandos útiles
 
