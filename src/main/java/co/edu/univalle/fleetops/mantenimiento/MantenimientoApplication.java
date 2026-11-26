@@ -4,6 +4,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+
 @SpringBootApplication
 @EnableScheduling
 public class MantenimientoApplication {
@@ -17,27 +22,33 @@ public class MantenimientoApplication {
     }
 
     private static void loadEnv() {
-        java.nio.file.Path envPath = java.nio.file.Paths.get(".env");
-        if (java.nio.file.Files.exists(envPath)) {
-            try {
-                java.util.List<String> lines = java.nio.file.Files.readAllLines(envPath);
-                for (String line : lines) {
-                    line = line.trim();
-                    if (line.isEmpty() || line.startsWith("#")) {
-                        continue;
-                    }
-                    int eqIdx = line.indexOf('=');
-                    if (eqIdx > 0) {
-                        String key = line.substring(0, eqIdx).trim();
-                        String value = line.substring(eqIdx + 1).trim();
-                        if (System.getProperty(key) == null && System.getenv(key) == null) {
-                            System.setProperty(key, value);
-                        }
-                    }
-                }
-            } catch (Exception ignored) {
-                // Si ocurre algún problema leyendo .env, Spring Boot utilizará los fallbacks o variables de entorno del sistema
+        Path envPath = Paths.get(".env");
+        if (!Files.exists(envPath)) {
+            return;
+        }
+        try {
+            List<String> lines = Files.readAllLines(envPath);
+            for (String line : lines) {
+                parseAndSetEnvLine(line);
             }
+        } catch (Exception ignored) {
+            // Si falla la lectura de .env, Spring Boot usará los fallbacks o variables del sistema
+        }
+    }
+
+    private static void parseAndSetEnvLine(String rawLine) {
+        String line = rawLine.trim();
+        if (line.isEmpty() || line.startsWith("#")) {
+            return;
+        }
+        int eqIdx = line.indexOf('=');
+        if (eqIdx <= 0) {
+            return;
+        }
+        String key = line.substring(0, eqIdx).trim();
+        String value = line.substring(eqIdx + 1).trim();
+        if (System.getProperty(key) == null && System.getenv(key) == null) {
+            System.setProperty(key, value);
         }
     }
 }

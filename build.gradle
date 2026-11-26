@@ -26,13 +26,27 @@ configurations {
 	}
 }
 
+// Spring Boot 3.4.3 trae Testcontainers 1.20.5, que no se puede conectar a Docker Engine 29+
+// (version usada por los runners de GitHub Actions: exige API >= 1.44). 1.21.4 corrige la negociacion.
+ext['testcontainers.version'] = '1.21.4'
+ext['springCloudAws.version'] = '3.3.0'
+
+dependencyManagement {
+	imports {
+		mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:${property('springCloudAws.version')}"
+	}
+}
+
 dependencies {
 	// Spring Boot Core & Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+	// AWS Messaging (SNS / SQS)
+	implementation 'io.awspring.cloud:spring-cloud-aws-starter-sns'
+	implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs'
 
 	// Resiliencia (Circuit Breaker)
 	implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
@@ -59,7 +73,7 @@ dependencies {
 
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testImplementation 'org.springframework.amqp:spring-rabbit-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -80,10 +94,12 @@ jacocoTestReport {
 	afterEvaluate {
 		classDirectories.setFrom(files(classDirectories.files.collect {
 			fileTree(dir: it, exclude: [
-					'co/edu/univalle/fleetops/mantenimiento/config/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+					'**/domain/exception/**',
+					'**/domain/model/**/record/**',
+					'**/infrastructure/adapter/out/persistence/entity/**',
+					'**/infrastructure/adapter/in/web/dto/**',
+					'**/config/**',
+					'**/MantenimientoApplication.class'
 			])
 		}))
 	}
@@ -94,10 +110,12 @@ jacocoTestCoverageVerification {
 	afterEvaluate {
 		classDirectories.setFrom(files(classDirectories.files.collect {
 			fileTree(dir: it, exclude: [
-					'co/edu/univalle/fleetops/mantenimiento/config/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**',
-					'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**',
-					'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
+					'**/domain/exception/**',
+					'**/domain/model/**/record/**',
+					'**/infrastructure/adapter/out/persistence/entity/**',
+					'**/infrastructure/adapter/in/web/dto/**',
+					'**/config/**',
+					'**/MantenimientoApplication.class'
 			])
 		}))
 	}
@@ -129,7 +147,8 @@ sonar {
 				'co/edu/univalle/fleetops/mantenimiento/config/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/in/web/dto/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/infrastructure/adapter/out/persistence/entity/**,' +
-						'co/edu/univalle/fleetops/mantenimiento/domain/model/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/domain/exception/**,' +
+						'co/edu/univalle/fleetops/mantenimiento/domain/model/**/record/**,' +
 						'co/edu/univalle/fleetops/mantenimiento/MantenimientoApplication.class'
 		property 'sonar.java.source', '21'
 		if (System.getenv('SONAR_TOKEN')) {

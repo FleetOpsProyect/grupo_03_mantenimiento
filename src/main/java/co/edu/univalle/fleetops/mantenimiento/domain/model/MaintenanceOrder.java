@@ -12,6 +12,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -22,6 +23,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MaintenanceOrder {
+
+    private static final ZoneId BOGOTA_ZONE = ZoneId.of("America/Bogota");
 
     private UUID id;
     private UUID vehicleId;
@@ -49,7 +52,7 @@ public class MaintenanceOrder {
             throw new InvalidStateTransitionException("No se puede asignar técnico a una orden finalizada o cancelada");
         }
         this.technicianId = newTechnicianId;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now(BOGOTA_ZONE);
     }
 
     public void startProgress() {
@@ -57,22 +60,25 @@ public class MaintenanceOrder {
             throw new InvalidStateTransitionException("Solo se puede iniciar una orden en estado SCHEDULED_PENDING");
         }
         this.status = MaintenanceStatus.IN_PROGRESS;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now(BOGOTA_ZONE);
     }
 
     public void complete(String completedByType, String completedById, BigDecimal computedTotalCost) {
         if (this.status != MaintenanceStatus.IN_PROGRESS) {
-            throw new InvalidStateTransitionException("Solo se puede completar una orden que esté EN_PROCESO (IN_PROGRESS)");
+            throw new InvalidStateTransitionException(
+                    "Solo se puede completar una orden que esté EN_PROCESO (IN_PROGRESS)");
         }
         if (completedByType == null || completedByType.isBlank() || completedById == null || completedById.isBlank()) {
-            throw new InvalidStateTransitionException("Se requiere el tipo y el identificador de quien completa la orden");
+            throw new InvalidStateTransitionException(
+                    "Se requiere el tipo y el identificador de quien completa la orden");
         }
+        LocalDateTime now = LocalDateTime.now(BOGOTA_ZONE);
         this.status = MaintenanceStatus.COMPLETED;
         this.completedByType = completedByType;
         this.completedById = completedById;
-        this.completedAt = LocalDateTime.now();
+        this.completedAt = now;
         this.totalCost = (computedTotalCost != null) ? computedTotalCost : BigDecimal.ZERO;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = now;
     }
 
     public void cancel(String cancelReason) {
@@ -81,6 +87,6 @@ public class MaintenanceOrder {
         }
         this.status = MaintenanceStatus.CANCELLED;
         this.reason = cancelReason;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now(BOGOTA_ZONE);
     }
 }
